@@ -1,0 +1,28 @@
+[project]
+name = "cinepolis-natal-api"
+version = "0.1.0"
+description = "Scalable RESTful API for cinema reservation system"
+authors = [
+    {name = "Arthur Santos",email = "arthur.fellipe21@gmail.com"}
+]
+license = {text = "MIT"}
+readme = "README.md"
+requires-python = ">=3.14"
+dependencies = [
+    "django (>=6.0.3,<7.0.0)",
+    "djangorestframework (>=3.16.1,<4.0.0)"
+]
+
+
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"
+
+[dependency-groups]
+dev = [
+    "black (>=26.3.1,<27.0.0)",
+    "isort (>=8.0.1,<9.0.0)",
+    "ruff (>=0.15.6,<0.16.0)",
+    "pytest (>=9.0.2,<10.0.0)",
+    "pytest-django (>=4.12.0,<5.0.0)"
+]
