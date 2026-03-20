@@ -37,7 +37,9 @@ THIRD_PARTY_APPS = [
     "rest_framework",
 ]
 
-LOCAL_APPS = []
+LOCAL_APPS = [
+    "users",
+]
 
 INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS
 
@@ -95,6 +97,12 @@ DATABASES = {
         "PORT": os.getenv("POSTGRES_PORT", "5432"),
     }
 }
+
+# -------------------------------------------------------------------
+# Authentication
+# -------------------------------------------------------------------
+
+AUTH_USER_MODEL = "users.User"
 
 # -------------------------------------------------------------------
 # Cache / Redis
