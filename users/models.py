@@ -57,7 +57,11 @@ class User(AbstractBaseUser, PermissionsMixin):
 
     class Meta:
         db_table = "users"
-        ordering = ["created_at"]
+        ordering = ["-created_at"]
+
+    def save(self, *args, **kwargs):
+        self.email = self.__class__.objects.normalize_email(self.email)
+        super().save(*args, **kwargs)
 
     def __str__(self):
         return self.email
