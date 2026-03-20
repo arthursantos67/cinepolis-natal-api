@@ -1,5 +1,7 @@
+from datetime import timedelta
 import os
 from pathlib import Path
+
 
 # -------------------------------------------------------------------
 # Paths
@@ -174,7 +176,28 @@ CELERY_ACCEPT_CONTENT = ["json"]
 CELERY_TASK_SERIALIZER = "json"
 
 # -------------------------------------------------------------------
-# Authentication
+# Django REST Framework
 # -------------------------------------------------------------------
 
-AUTH_USER_MODEL = "users.User"
+REST_FRAMEWORK = {
+    "DEFAULT_AUTHENTICATION_CLASSES": (
+        "rest_framework_simplejwt.authentication.JWTAuthentication",
+    ),
+    "DEFAULT_PERMISSION_CLASSES": (
+        "rest_framework.permissions.AllowAny",
+    ),
+}
+
+# -------------------------------------------------------------------
+# Simple JWT
+# -------------------------------------------------------------------
+
+SIMPLE_JWT = {
+    "ACCESS_TOKEN_LIFETIME": timedelta(
+        minutes=int(os.getenv("JWT_ACCESS_TOKEN_LIFETIME_MINUTES", "30"))
+    ),
+    "REFRESH_TOKEN_LIFETIME": timedelta(
+        days=int(os.getenv("JWT_REFRESH_TOKEN_LIFETIME_DAYS", "7"))
+    ),
+    "AUTH_HEADER_TYPES": ("Bearer",),
+}
