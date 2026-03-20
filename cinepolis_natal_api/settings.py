@@ -37,7 +37,9 @@ THIRD_PARTY_APPS = [
     "rest_framework",
 ]
 
-LOCAL_APPS = []
+LOCAL_APPS = [
+    "users",
+]
 
 INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS
 
@@ -164,3 +166,9 @@ CELERY_BROKER_URL = os.getenv("CELERY_BROKER_URL", "redis://redis:6379/1")
 
 CELERY_ACCEPT_CONTENT = ["json"]
 CELERY_TASK_SERIALIZER = "json"
+
+# -------------------------------------------------------------------
+# Authentication
+# -------------------------------------------------------------------
+
+AUTH_USER_MODEL = "users.User"
