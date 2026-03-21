@@ -36,11 +36,13 @@ DJANGO_APPS = [
 ]
 
 THIRD_PARTY_APPS = [
+    "django.contrib.postgres",
     "rest_framework",
 ]
 
 LOCAL_APPS = [
     "users",
+    "catalog",
 ]
 
 INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS
@@ -97,6 +99,7 @@ DATABASES = {
         "PASSWORD": os.getenv("POSTGRES_PASSWORD", "postgres"),
         "HOST": os.getenv("POSTGRES_HOST", "db"),
         "PORT": os.getenv("POSTGRES_PORT", "5432"),
+        "DISABLE_SERVER_SIDE_CURSORS": True,
     }
 }
 
