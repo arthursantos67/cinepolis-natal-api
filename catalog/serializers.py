@@ -1,6 +1,9 @@
 from rest_framework import serializers
 
+from django.db import transaction
+
 from catalog.models import Genre, Movie, Room, Session
+from reservations.models import SessionSeat, Seat
 
 
 class GenreSerializer(serializers.ModelSerializer):
@@ -97,6 +100,21 @@ class SessionWriteSerializer(serializers.ModelSerializer):
             "updated_at",
         ]
         read_only_fields = ["id", "created_at", "updated_at"]
+
+    @transaction.atomic
+    def create(self, validated_data):
+        session = Session.objects.create(**validated_data)
+
+        seats = Seat.objects.select_related("row").filter(row__room=session.room)
+
+        session_seats = [
+            SessionSeat(session=session, seat=seat)
+            for seat in seats
+        ]
+
+        SessionSeat.objects.bulk_create(session_seats)
+
+        return session
 
 
 class SessionReadSerializer(serializers.ModelSerializer):
