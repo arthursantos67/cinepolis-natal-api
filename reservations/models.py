@@ -160,6 +160,10 @@ class SessionSeat(models.Model):
                 )
 
         elif self.status == SessionSeatStatus.PURCHASED:
+            if self.locked_by_user is not None:
+                raise ValidationError(
+                    {"locked_by_user": "Purchased seats cannot have a locked user."}
+                )
             if self.lock_expires_at is not None:
                 raise ValidationError(
                     {"lock_expires_at": "Purchased seats cannot have a lock expiration."}
