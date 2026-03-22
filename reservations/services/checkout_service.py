@@ -1,0 +1,106 @@
+from django.db import transaction
+from django.utils import timezone
+
+from reservations.locks import SeatLockManager
+from reservations.models import SessionSeat, SessionSeatStatus
+
+
+class CheckoutError(Exception):
+    pass
+
+
+class InvalidSeatSelectionError(CheckoutError):
+    pass
+
+
+class ReservationOwnershipError(CheckoutError):
+    pass
+
+
+class ExpiredReservationError(CheckoutError):
+    pass
+
+
+class InvalidSeatStateError(CheckoutError):
+    pass
+
+
+class CheckoutService:
+    INVALID_SELECTION_MESSAGE = (
+        "One or more selected seats do not belong to this session."
+    )
+    OWNERSHIP_MESSAGE = "One or more selected seats are not locked by this user."
+    EXPIRED_MESSAGE = "One or more selected seats have expired reservations."
+    INVALID_STATE_MESSAGE = "One or more selected seats are not available for checkout."
+
+    def __init__(self):
+        self.lock_manager = SeatLockManager()
+
+    @transaction.atomic
+    def execute(self, *, session_id, seat_ids, user):
+        ordered_seat_ids = sorted(set(seat_ids))
+        now = timezone.now()
+
+        session_seats = list(
+            SessionSeat.objects.select_for_update()
+            .select_related("seat", "seat__row")
+            .filter(
+                session_id=session_id,
+                seat_id__in=ordered_seat_ids,
+            )
+            .order_by("seat_id")
+        )
+
+        if len(session_seats) != len(ordered_seat_ids):
+            raise InvalidSeatSelectionError(self.INVALID_SELECTION_MESSAGE)
+
+        for session_seat in session_seats:
+            if session_seat.status != SessionSeatStatus.RESERVED:
+                raise InvalidSeatStateError(self.INVALID_STATE_MESSAGE)
+
+            if session_seat.locked_by_user_id != user.id:
+                raise ReservationOwnershipError(self.OWNERSHIP_MESSAGE)
+
+            if session_seat.lock_expires_at is None or session_seat.lock_expires_at <= now:
+                raise ExpiredReservationError(self.EXPIRED_MESSAGE)
+
+        purchased_seats = []
+
+        for session_seat in session_seats:
+            session_seat.status = SessionSeatStatus.PURCHASED
+            session_seat.locked_by_user = None
+            session_seat.lock_expires_at = None
+            purchased_seats.append(session_seat)
+
+        SessionSeat.objects.bulk_update(
+            purchased_seats,
+            ["status", "locked_by_user", "lock_expires_at"],
+        )
+
+        transaction.on_commit(
+            lambda: self._release_redis_locks(
+                session_id=session_id,
+                session_seats=purchased_seats,
+            )
+        )
+
+        return {
+            "status": "PURCHASED",
+            "session_id": session_id,
+            "seats": [
+                {
+                    "seat_id": str(session_seat.seat_id),
+                    "row": session_seat.seat.row.name,
+                    "number": session_seat.seat.number,
+                    "status": session_seat.status,
+                }
+                for session_seat in purchased_seats
+            ],
+        }
+
+    def _release_redis_locks(self, *, session_id, session_seats):
+        for session_seat in session_seats:
+            self.lock_manager.release(
+                session_id=session_id,
+                seat_id=session_seat.seat_id,
+            )

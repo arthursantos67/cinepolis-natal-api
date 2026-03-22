@@ -13,11 +13,20 @@ from reservations.exceptions import (
 )
 from reservations.models import SessionSeat
 from reservations.serializers import (
+    CheckoutRequestSerializer,
+    CheckoutResponseSerializer,
     SessionSeatMapItemSerializer,
     TemporaryReservationRequestSerializer,
     TemporaryReservationResponseSerializer,
 )
 from reservations.services import TemporaryReservationService
+from reservations.services.checkout_service import (
+    ExpiredReservationError,
+    InvalidSeatStateError,
+    CheckoutService,
+    InvalidSeatSelectionError as CheckoutInvalidSeatSelectionError,
+    ReservationOwnershipError,
+)
 
 
 class SessionSeatMapView(ListAPIView):
@@ -74,3 +83,50 @@ class TemporarySeatReservationView(GenericAPIView):
             response_payload
         )
         return Response(response_serializer.data, status=status.HTTP_201_CREATED)
+
+
+class CheckoutView(GenericAPIView):
+    permission_classes = [IsAuthenticated]
+    serializer_class = CheckoutRequestSerializer
+
+    def post(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        service = CheckoutService()
+
+        try:
+            checkout_result = service.execute(
+                session_id=serializer.validated_data["session_id"],
+                seat_ids=serializer.validated_data["seat_ids"],
+                user=request.user,
+            )
+        except CheckoutInvalidSeatSelectionError as exc:
+            raise ValidationError(detail={"seat_ids": [str(exc)]}) from exc
+        except ReservationOwnershipError as exc:
+            return Response(
+                {
+                    "error": "RESERVATION_OWNERSHIP_ERROR",
+                    "message": str(exc),
+                },
+                status=status.HTTP_403_FORBIDDEN,
+            )
+        except ExpiredReservationError as exc:
+            return Response(
+                {
+                    "error": "RESERVATION_EXPIRED",
+                    "message": str(exc),
+                },
+                status=status.HTTP_409_CONFLICT,
+            )
+        except InvalidSeatStateError as exc:
+            return Response(
+                {
+                    "error": "INVALID_SEAT_STATE",
+                    "message": str(exc),
+                },
+                status=status.HTTP_409_CONFLICT,
+            )
+
+        response_serializer = CheckoutResponseSerializer(checkout_result)
+        return Response(response_serializer.data, status=status.HTTP_200_OK)
