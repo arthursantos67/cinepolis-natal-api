@@ -2,7 +2,7 @@ from django.db import transaction
 from django.utils import timezone
 
 from reservations.locks import SeatLockManager
-from reservations.models import SessionSeat, SessionSeatStatus
+from reservations.models import SessionSeat, SessionSeatStatus, Ticket
 
 
 class CheckoutError(Exception):
@@ -54,6 +54,8 @@ class CheckoutService:
         if len(session_seats) != len(ordered_seat_ids):
             raise InvalidSeatSelectionError(self.INVALID_SELECTION_MESSAGE)
 
+        purchased_seats = []
+
         for session_seat in session_seats:
             if session_seat.status != SessionSeatStatus.RESERVED:
                 raise InvalidSeatStateError(self.INVALID_STATE_MESSAGE)
@@ -61,12 +63,12 @@ class CheckoutService:
             if session_seat.locked_by_user_id != user.id:
                 raise ReservationOwnershipError(self.OWNERSHIP_MESSAGE)
 
-            if session_seat.lock_expires_at is None or session_seat.lock_expires_at <= now:
+            if (
+                session_seat.lock_expires_at is None
+                or session_seat.lock_expires_at <= now
+            ):
                 raise ExpiredReservationError(self.EXPIRED_MESSAGE)
 
-        purchased_seats = []
-
-        for session_seat in session_seats:
             session_seat.status = SessionSeatStatus.PURCHASED
             session_seat.locked_by_user = None
             session_seat.lock_expires_at = None
@@ -76,6 +78,14 @@ class CheckoutService:
             purchased_seats,
             ["status", "locked_by_user", "lock_expires_at"],
         )
+
+        tickets = []
+        for session_seat in purchased_seats:
+            ticket = Ticket.objects.create(
+                user=user,
+                session_seat=session_seat,
+            )
+            tickets.append(ticket)
 
         transaction.on_commit(
             lambda: self._release_redis_locks(
@@ -95,6 +105,14 @@ class CheckoutService:
                     "status": session_seat.status,
                 }
                 for session_seat in purchased_seats
+            ],
+            "tickets": [
+                {
+                    "ticket_id": str(ticket.id),
+                    "ticket_code": ticket.ticket_code,
+                    "seat_id": str(ticket.session_seat.seat_id),
+                }
+                for ticket in tickets
             ],
         }
 
