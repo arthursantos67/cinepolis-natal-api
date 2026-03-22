@@ -38,6 +38,7 @@ DJANGO_APPS = [
 THIRD_PARTY_APPS = [
     "django.contrib.postgres",
     "rest_framework",
+    "drf_spectacular",
 ]
 
 LOCAL_APPS = [
@@ -188,6 +189,7 @@ REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": [
         "rest_framework_simplejwt.authentication.JWTAuthentication",
     ],
+    "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
     "DEFAULT_PERMISSION_CLASSES": [
         "rest_framework.permissions.AllowAny",
     ],
@@ -204,6 +206,29 @@ REST_FRAMEWORK = {
         "reservation": os.getenv("THROTTLE_RESERVATION_RATE", "10/minute"),
     },
     "EXCEPTION_HANDLER": "cinepolis_natal_api.throttling.throttling_exception_handler",
+}
+
+SPECTACULAR_SETTINGS = {
+    "TITLE": "Cinepolis Natal API",
+    "DESCRIPTION": "Production-oriented REST API for cinema reservation operations.",
+    "VERSION": "1.0.0",
+    "SERVE_INCLUDE_SCHEMA": False,
+    "TAGS": [
+        {"name": "Auth", "description": "Authentication and token issuance endpoints."},
+        {"name": "Catalog", "description": "Movie catalog, genres, rooms, and sessions endpoints."},
+        {"name": "Reservations", "description": "Seat map, temporary reservation, and checkout endpoints."},
+        {"name": "Users", "description": "Authenticated user profile and ticket endpoints."},
+    ],
+    "APPEND_COMPONENTS": {
+        "securitySchemes": {
+            "BearerAuth": {
+                "type": "http",
+                "scheme": "bearer",
+                "bearerFormat": "JWT",
+            }
+        }
+    },
+    "SECURITY": [{"BearerAuth": []}],
 }
 
 # -------------------------------------------------------------------

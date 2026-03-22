@@ -1,5 +1,6 @@
 from django.contrib.auth import authenticate
 from django.contrib.auth.password_validation import validate_password
+from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
 from rest_framework.exceptions import AuthenticationFailed
 
@@ -59,7 +60,26 @@ class UserLoginSerializer(serializers.Serializer):
 
         attrs["user"] = user
         return attrs
-    
+
+
+class UserTicketSessionSerializer(serializers.Serializer):
+    id = serializers.UUIDField()
+    start_time = serializers.DateTimeField()
+    end_time = serializers.DateTimeField()
+
+
+class UserTicketMovieSerializer(serializers.Serializer):
+    id = serializers.UUIDField()
+    title = serializers.CharField()
+    poster_url = serializers.URLField(allow_null=True)
+
+
+class UserTicketSeatSerializer(serializers.Serializer):
+    id = serializers.UUIDField()
+    row = serializers.CharField()
+    number = serializers.IntegerField()
+
+
 class UserTicketSerializer(serializers.ModelSerializer):
     ticket_id = serializers.UUIDField(source="id")
     ticket_code = serializers.CharField()
@@ -80,6 +100,7 @@ class UserTicketSerializer(serializers.ModelSerializer):
             "seat",
         )
 
+    @extend_schema_field(UserTicketSessionSerializer)
     def get_session(self, obj):
         session = obj.session_seat.session
         return {
@@ -88,6 +109,7 @@ class UserTicketSerializer(serializers.ModelSerializer):
             "end_time": session.end_time,
         }
 
+    @extend_schema_field(UserTicketMovieSerializer)
     def get_movie(self, obj):
         movie = obj.session_seat.session.movie
         return {
@@ -96,6 +118,7 @@ class UserTicketSerializer(serializers.ModelSerializer):
             "poster_url": movie.poster_url,
         }
 
+    @extend_schema_field(UserTicketSeatSerializer)
     def get_seat(self, obj):
         seat = obj.session_seat.seat
         return {
