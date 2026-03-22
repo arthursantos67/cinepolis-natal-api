@@ -1,8 +1,10 @@
 from django.utils import timezone
+from drf_spectacular.utils import OpenApiParameter, OpenApiResponse, extend_schema, extend_schema_view
 from rest_framework import status
 from rest_framework.generics import CreateAPIView, ListAPIView
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
+from rest_framework import serializers
 from rest_framework.views import APIView
 from rest_framework_simplejwt.tokens import RefreshToken
 
@@ -15,11 +17,48 @@ from users.serializers import (
 )
 
 
+class UserLoginResponseSerializer(serializers.Serializer):
+    access = serializers.CharField()
+    refresh = serializers.CharField()
+
+
+class CurrentUserResponseSerializer(serializers.Serializer):
+    id = serializers.UUIDField()
+    email = serializers.EmailField()
+    username = serializers.CharField()
+    created_at = serializers.DateTimeField()
+
+
+@extend_schema_view(
+    post=extend_schema(
+        tags=["Auth"],
+        summary="Register user",
+        description="Create a new user account.",
+        request=UserRegistrationSerializer,
+        responses={
+            201: UserRegistrationSerializer,
+            400: OpenApiResponse(description="Validation error."),
+        },
+    )
+)
 class UserRegistrationView(CreateAPIView):
     serializer_class = UserRegistrationSerializer
     permission_classes = [AllowAny]
 
 
+@extend_schema_view(
+    post=extend_schema(
+        tags=["Auth"],
+        summary="Login user",
+        description="Authenticate with email and password and return JWT tokens.",
+        request=UserLoginSerializer,
+        responses={
+            200: UserLoginResponseSerializer,
+            401: OpenApiResponse(description="Invalid credentials."),
+            429: OpenApiResponse(description="Too many login attempts."),
+        },
+    )
+)
 class UserLoginView(APIView):
     permission_classes = [AllowAny]
     throttle_classes = [LoginRateThrottle]
@@ -43,6 +82,14 @@ class UserLoginView(APIView):
         )
 
 
+@extend_schema_view(
+    get=extend_schema(
+        tags=["Users"],
+        summary="Get current user",
+        description="Return profile information for the authenticated user.",
+        responses={200: CurrentUserResponseSerializer},
+    )
+)
 class CurrentUserView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -56,7 +103,24 @@ class CurrentUserView(APIView):
             },
             status=status.HTTP_200_OK,
         )
-        
+
+
+@extend_schema_view(
+    get=extend_schema(
+        tags=["Users"],
+        summary="List my tickets",
+        description="Return tickets of the authenticated user, optionally filtered by time type.",
+        parameters=[
+            OpenApiParameter(
+                name="type",
+                required=False,
+                location=OpenApiParameter.QUERY,
+                description="Filter by ticket type.",
+                enum=["upcoming", "past"],
+            )
+        ],
+    )
+)
 class MyTicketsView(ListAPIView):
     permission_classes = [IsAuthenticated]
     serializer_class = UserTicketSerializer

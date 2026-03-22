@@ -1,4 +1,5 @@
 from django.shortcuts import get_object_or_404
+from drf_spectacular.utils import OpenApiResponse, extend_schema, extend_schema_view
 from rest_framework import status
 from rest_framework.exceptions import NotFound, ValidationError
 from rest_framework.generics import GenericAPIView, ListAPIView
@@ -31,6 +32,14 @@ from reservations.services.checkout_service import (
 )
 
 
+@extend_schema_view(
+    get=extend_schema(
+        tags=["Reservations"],
+        summary="Get session seat map",
+        description="Return seat map for a specific session.",
+        responses={200: SessionSeatMapItemSerializer(many=True)},
+    )
+)
 class SessionSeatMapView(ListAPIView):
     serializer_class = SessionSeatMapItemSerializer
     permission_classes = [AllowAny]
@@ -46,6 +55,21 @@ class SessionSeatMapView(ListAPIView):
         )
 
 
+@extend_schema_view(
+    post=extend_schema(
+        tags=["Reservations"],
+        summary="Create temporary reservation",
+        description="Temporarily reserve seats for the authenticated user.",
+        request=TemporaryReservationRequestSerializer,
+        responses={
+            201: TemporaryReservationResponseSerializer,
+            400: OpenApiResponse(description="Validation error."),
+            404: OpenApiResponse(description="Session not found."),
+            409: OpenApiResponse(description="Seat unavailable."),
+            429: OpenApiResponse(description="Too many reservation attempts."),
+        },
+    )
+)
 class TemporarySeatReservationView(GenericAPIView):
     permission_classes = [IsAuthenticated]
     serializer_class = TemporaryReservationRequestSerializer
@@ -89,6 +113,21 @@ class TemporarySeatReservationView(GenericAPIView):
         return Response(response_serializer.data, status=status.HTTP_201_CREATED)
 
 
+@extend_schema_view(
+    post=extend_schema(
+        tags=["Reservations"],
+        summary="Checkout reserved seats",
+        description="Finalize the purchase for temporarily reserved seats.",
+        request=CheckoutRequestSerializer,
+        responses={
+            200: CheckoutResponseSerializer,
+            400: OpenApiResponse(description="Validation error."),
+            403: OpenApiResponse(description="Reservation ownership error."),
+            409: OpenApiResponse(description="Reservation expired or invalid seat state."),
+            429: OpenApiResponse(description="Too many checkout attempts."),
+        },
+    )
+)
 class CheckoutView(GenericAPIView):
     permission_classes = [IsAuthenticated]
     serializer_class = CheckoutRequestSerializer

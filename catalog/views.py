@@ -1,5 +1,6 @@
 from django.core.cache import cache
 from django_redis import get_redis_connection
+from drf_spectacular.utils import extend_schema
 from rest_framework.response import Response
 from rest_framework.generics import ListCreateAPIView, RetrieveDestroyAPIView
 from rest_framework.permissions import AllowAny
@@ -25,18 +26,21 @@ def invalidate_session_list_cache():
     for key in redis.scan_iter("*catalog:sessions:*"):
         redis.delete(key)
 
+@extend_schema(tags=["Catalog"], summary="List or create genres")
 class GenreListCreateView(ListCreateAPIView):
     queryset = Genre.objects.all()
     serializer_class = GenreSerializer
     permission_classes = [AllowAny]
 
 
+@extend_schema(tags=["Catalog"], summary="Get or delete genre")
 class GenreDetailView(RetrieveDestroyAPIView):
     queryset = Genre.objects.all()
     serializer_class = GenreSerializer
     permission_classes = [AllowAny]
 
 
+@extend_schema(tags=["Catalog"], summary="List or create movies")
 class MovieListCreateView(ListCreateAPIView):
     queryset = Movie.objects.prefetch_related("genres").all()
     permission_classes = [AllowAny]
@@ -64,6 +68,7 @@ class MovieListCreateView(ListCreateAPIView):
         return response
 
 
+@extend_schema(tags=["Catalog"], summary="Get or delete movie")
 class MovieDetailView(RetrieveDestroyAPIView):
     queryset = Movie.objects.prefetch_related("genres").all()
     permission_classes = [AllowAny]
@@ -79,18 +84,21 @@ class MovieDetailView(RetrieveDestroyAPIView):
         return response
 
 
+@extend_schema(tags=["Catalog"], summary="List or create rooms")
 class RoomListCreateView(ListCreateAPIView):
     queryset = Room.objects.all()
     serializer_class = RoomSerializer
     permission_classes = [AllowAny]
 
 
+@extend_schema(tags=["Catalog"], summary="Get or delete room")
 class RoomDetailView(RetrieveDestroyAPIView):
     queryset = Room.objects.all()
     serializer_class = RoomSerializer
     permission_classes = [AllowAny]
 
 
+@extend_schema(tags=["Catalog"], summary="List or create sessions")
 class SessionListCreateView(ListCreateAPIView):
     queryset = Session.objects.select_related("movie", "room").prefetch_related(
         "movie__genres"
@@ -120,6 +128,7 @@ class SessionListCreateView(ListCreateAPIView):
         return response
 
 
+@extend_schema(tags=["Catalog"], summary="Get or delete session")
 class SessionDetailView(RetrieveDestroyAPIView):
     queryset = Session.objects.select_related("movie", "room").prefetch_related(
         "movie__genres"
