@@ -1,6 +1,7 @@
 from datetime import timedelta
 
 import pytest
+from django.test import override_settings
 from django.urls import reverse
 from django.utils import timezone
 from rest_framework.test import APIClient
@@ -10,7 +11,46 @@ from reservations.models import Seat, SeatRow, SessionSeat, SessionSeatStatus
 from users.models import User
 
 
-pytestmark = pytest.mark.django_db
+REST_FRAMEWORK_OVERRIDE = {
+    "DEFAULT_AUTHENTICATION_CLASSES": [
+        "rest_framework_simplejwt.authentication.JWTAuthentication",
+    ],
+    "DEFAULT_PERMISSION_CLASSES": [
+        "rest_framework.permissions.AllowAny",
+    ],
+    "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.PageNumberPagination",
+    "PAGE_SIZE": 10,
+    "DEFAULT_THROTTLE_CLASSES": [],
+    "DEFAULT_THROTTLE_RATES": {},
+    "EXCEPTION_HANDLER": "cinepolis_natal_api.throttling.throttling_exception_handler",
+}
+
+
+pytestmark = [
+    pytest.mark.django_db,
+    pytest.mark.usefixtures("disable_throttling_for_module"),
+]
+
+
+@pytest.fixture(autouse=True)
+def disable_throttling_for_module():
+    from reservations.views import CheckoutView, TemporarySeatReservationView
+    from users.views import UserLoginView
+
+    original_login_throttles = UserLoginView.throttle_classes
+    original_temp_reservation_throttles = TemporarySeatReservationView.throttle_classes
+    original_checkout_throttles = CheckoutView.throttle_classes
+
+    UserLoginView.throttle_classes = []
+    TemporarySeatReservationView.throttle_classes = []
+    CheckoutView.throttle_classes = []
+
+    with override_settings(REST_FRAMEWORK=REST_FRAMEWORK_OVERRIDE):
+        yield
+
+    UserLoginView.throttle_classes = original_login_throttles
+    TemporarySeatReservationView.throttle_classes = original_temp_reservation_throttles
+    CheckoutView.throttle_classes = original_checkout_throttles
 
 
 def create_user(email="user@example.com", password="StrongPass123!"):
@@ -90,8 +130,6 @@ def test_temporary_reservation_success():
         {"seat_ids": [str(seats[0].id), str(seats[1].id)]},
         format="json",
     )
-    
-    print(response.data)
 
     assert response.status_code == 201
     assert response.data["status"] == "TEMPORARILY_RESERVED"

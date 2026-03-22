@@ -1,21 +1,18 @@
 from django.utils import timezone
+from rest_framework import status
 from rest_framework.generics import CreateAPIView, ListAPIView
+from rest_framework.permissions import AllowAny, IsAuthenticated
+from rest_framework.response import Response
+from rest_framework.views import APIView
+from rest_framework_simplejwt.tokens import RefreshToken
 
+from cinepolis_natal_api.throttling import LoginRateThrottle
 from reservations.models import Ticket
 from users.serializers import (
     UserLoginSerializer,
     UserRegistrationSerializer,
     UserTicketSerializer,
 )
-
-from rest_framework import status
-from rest_framework.generics import CreateAPIView
-from rest_framework.permissions import AllowAny, IsAuthenticated
-from rest_framework.response import Response
-from rest_framework.views import APIView
-from rest_framework_simplejwt.tokens import RefreshToken
-
-from users.serializers import UserLoginSerializer, UserRegistrationSerializer
 
 
 class UserRegistrationView(CreateAPIView):
@@ -25,6 +22,7 @@ class UserRegistrationView(CreateAPIView):
 
 class UserLoginView(APIView):
     permission_classes = [AllowAny]
+    throttle_classes = [LoginRateThrottle]
 
     def post(self, request, *args, **kwargs):
         serializer = UserLoginSerializer(

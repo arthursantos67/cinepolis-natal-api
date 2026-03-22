@@ -5,6 +5,8 @@ from rest_framework.generics import GenericAPIView, ListAPIView
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 
+from cinepolis_natal_api.throttling import ReservationRateThrottle
+
 from catalog.models import Session
 from reservations.exceptions import (
     InvalidSeatSelectionError,
@@ -47,6 +49,7 @@ class SessionSeatMapView(ListAPIView):
 class TemporarySeatReservationView(GenericAPIView):
     permission_classes = [IsAuthenticated]
     serializer_class = TemporaryReservationRequestSerializer
+    throttle_classes = [ReservationRateThrottle]
 
     def post(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
@@ -89,6 +92,7 @@ class TemporarySeatReservationView(GenericAPIView):
 class CheckoutView(GenericAPIView):
     permission_classes = [IsAuthenticated]
     serializer_class = CheckoutRequestSerializer
+    throttle_classes = [ReservationRateThrottle]
 
     def post(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
