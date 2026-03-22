@@ -230,7 +230,7 @@ REST_FRAMEWORK = {
         "login": os.getenv("THROTTLE_LOGIN_RATE", "5/minute"),
         "reservation": os.getenv("THROTTLE_RESERVATION_RATE", "10/minute"),
     },
-    "EXCEPTION_HANDLER": "cinepolis_natal_api.throttling.throttling_exception_handler",
+    "EXCEPTION_HANDLER": "cinepolis_natal_api.exception_handler.standardized_exception_handler",
 }
 
 SPECTACULAR_SETTINGS = {

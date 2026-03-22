@@ -123,7 +123,8 @@ def test_checkout_should_fail_for_expired_reservation():
     )
 
     assert response.status_code == 409
-    assert response.data["error"] == "RESERVATION_EXPIRED"
+    assert response.data["error"]["code"] == "SEAT_ALREADY_RESERVED"
+    assert response.data["error"]["status"] == 409
 
     session_seat.refresh_from_db()
     assert session_seat.status == SessionSeatStatus.RESERVED
@@ -186,7 +187,8 @@ def test_checkout_should_fail_for_different_user():
     )
 
     assert response.status_code == 403
-    assert response.data["error"] == "RESERVATION_OWNERSHIP_ERROR"
+    assert response.data["error"]["code"] == "PERMISSION_DENIED"
+    assert response.data["error"]["status"] == 403
 
     session_seat.refresh_from_db()
     assert session_seat.status == SessionSeatStatus.RESERVED
