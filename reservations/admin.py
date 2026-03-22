@@ -2,7 +2,7 @@ from django import forms
 from django.contrib import admin
 from django.core.exceptions import ValidationError
 
-from .models import Seat, SeatRow, SessionSeat
+from .models import Seat, SeatRow, SessionSeat, Ticket
 
 class SessionSeatAdminForm(forms.ModelForm):
     class Meta:
@@ -76,3 +76,14 @@ class SessionSeatAdmin(admin.ModelAdmin):
     @admin.display(ordering="session__room__name", description="Room")
     def room(self, obj):
         return obj.session.room.name
+    
+@admin.register(Ticket)
+class TicketAdmin(admin.ModelAdmin):
+    list_display = ("id", "ticket_code", "user", "session_seat", "created_at")
+    search_fields = (
+        "ticket_code",
+        "user__email",
+        "session_seat__session__movie__title",
+    )
+    list_filter = ("created_at",)
+    ordering = ("-created_at",)
