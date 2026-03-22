@@ -208,7 +208,9 @@ def test_temporary_reservation_rejects_duplicate_seat_ids():
     )
 
     assert response.status_code == 400
-    assert "seat_ids" in response.data
+    assert response.data["error"]["code"] == "VALIDATION_FAILED"
+    assert response.data["error"]["status"] == 400
+    assert "seat_ids" in response.data["error"]["details"]
 
 
 def test_temporary_reservation_rejects_empty_payload():
@@ -231,7 +233,9 @@ def test_temporary_reservation_rejects_empty_payload():
     )
 
     assert response.status_code == 400
-    assert "seat_ids" in response.data
+    assert response.data["error"]["code"] == "VALIDATION_FAILED"
+    assert response.data["error"]["status"] == 400
+    assert "seat_ids" in response.data["error"]["details"]
 
 
 def test_temporary_reservation_rejects_seat_not_in_session():
@@ -258,7 +262,9 @@ def test_temporary_reservation_rejects_seat_not_in_session():
     )
 
     assert response.status_code == 400
-    assert "seat_ids" in response.data
+    assert response.data["error"]["code"] == "VALIDATION_FAILED"
+    assert response.data["error"]["status"] == 400
+    assert "seat_ids" in response.data["error"]["details"]
 
 
 def test_temporary_reservation_returns_conflict_for_reserved_seat():
@@ -288,7 +294,8 @@ def test_temporary_reservation_returns_conflict_for_reserved_seat():
     )
 
     assert response.status_code == 409
-    assert response.data["error"] == "SEAT_UNAVAILABLE"
+    assert response.data["error"]["code"] == "SEAT_ALREADY_RESERVED"
+    assert response.data["error"]["status"] == 409
 
 
 def test_temporary_reservation_returns_conflict_for_purchased_seat():
@@ -317,7 +324,8 @@ def test_temporary_reservation_returns_conflict_for_purchased_seat():
     )
 
     assert response.status_code == 409
-    assert response.data["error"] == "SEAT_UNAVAILABLE"
+    assert response.data["error"]["code"] == "SEAT_ALREADY_RESERVED"
+    assert response.data["error"]["status"] == 409
 
 
 def test_temporary_reservation_fails_atomically_for_mixed_availability():

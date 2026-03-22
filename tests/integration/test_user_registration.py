@@ -1,8 +1,37 @@
 import pytest
 from django.contrib.auth import get_user_model
+from django.test import override_settings
 from rest_framework.test import APIClient
 
 User = get_user_model()
+
+
+REST_FRAMEWORK_OVERRIDE = {
+    "DEFAULT_AUTHENTICATION_CLASSES": [
+        "rest_framework_simplejwt.authentication.JWTAuthentication",
+    ],
+    "DEFAULT_PERMISSION_CLASSES": [
+        "rest_framework.permissions.AllowAny",
+    ],
+    "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.PageNumberPagination",
+    "PAGE_SIZE": 10,
+    "DEFAULT_THROTTLE_CLASSES": [],
+    "DEFAULT_THROTTLE_RATES": {},
+    "EXCEPTION_HANDLER": "cinepolis_natal_api.exception_handler.standardized_exception_handler",
+}
+
+
+@pytest.fixture(autouse=True)
+def disable_throttling_for_module():
+    from users.views import UserRegistrationView
+
+    original_user_registration_throttles = UserRegistrationView.throttle_classes
+    UserRegistrationView.throttle_classes = []
+
+    with override_settings(REST_FRAMEWORK=REST_FRAMEWORK_OVERRIDE):
+        yield
+
+    UserRegistrationView.throttle_classes = original_user_registration_throttles
 
 
 @pytest.mark.django_db
@@ -47,7 +76,9 @@ def test_user_registration_rejects_duplicate_email():
     response = client.post("/api/v1/auth/register/", payload, format="json")
 
     assert response.status_code == 400
-    assert "email" in response.data
+    assert response.data["error"]["code"] == "VALIDATION_FAILED"
+    assert response.data["error"]["status"] == 400
+    assert "email" in response.data["error"]["details"]
 
 
 @pytest.mark.django_db
@@ -69,7 +100,9 @@ def test_user_registration_rejects_duplicate_username():
     response = client.post("/api/v1/auth/register/", payload, format="json")
 
     assert response.status_code == 400
-    assert "username" in response.data
+    assert response.data["error"]["code"] == "VALIDATION_FAILED"
+    assert response.data["error"]["status"] == 400
+    assert "username" in response.data["error"]["details"]
 
 
 @pytest.mark.django_db
@@ -79,6 +112,8 @@ def test_user_registration_requires_email_username_and_password():
     response = client.post("/api/v1/auth/register/", {}, format="json")
 
     assert response.status_code == 400
-    assert "email" in response.data
-    assert "username" in response.data
-    assert "password" in response.data
+    assert response.data["error"]["code"] == "VALIDATION_FAILED"
+    assert response.data["error"]["status"] == 400
+    assert "email" in response.data["error"]["details"]
+    assert "username" in response.data["error"]["details"]
+    assert "password" in response.data["error"]["details"]

@@ -1,3 +1,6 @@
+from rest_framework.exceptions import APIException
+
+
 class ReservationError(Exception):
     default_code = "RESERVATION_ERROR"
     default_message = "Reservation could not be completed."
@@ -20,14 +23,15 @@ class InvalidSeatSelectionError(ReservationError):
     default_code = "INVALID_SEAT_SELECTION"
     default_message = "One or more selected seats are invalid for this session."
     status_code = 400
-    
-class SessionNotFoundError(Exception):
-    pass
 
 
-class InvalidSeatSelectionError(Exception):
-    pass
+class SessionNotFoundError(ReservationError):
+    default_code = "SESSION_NOT_FOUND"
+    default_message = "Session not found."
+    status_code = 404
 
 
-class SeatUnavailableError(Exception):
-    pass
+class SeatAlreadyReservedApiException(APIException):
+    status_code = 409
+    default_code = "SEAT_ALREADY_RESERVED"
+    default_detail = "One or more selected seats are already reserved or purchased."

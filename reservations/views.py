@@ -1,7 +1,7 @@
 from django.shortcuts import get_object_or_404
 from drf_spectacular.utils import OpenApiResponse, extend_schema, extend_schema_view
 from rest_framework import status
-from rest_framework.exceptions import NotFound, ValidationError
+from rest_framework.exceptions import NotFound, PermissionDenied, ValidationError
 from rest_framework.generics import GenericAPIView, ListAPIView
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
@@ -11,6 +11,7 @@ from cinepolis_natal_api.throttling import ReservationRateThrottle
 from catalog.models import Session
 from reservations.exceptions import (
     InvalidSeatSelectionError,
+    SeatAlreadyReservedApiException,
     SeatUnavailableError,
     SessionNotFoundError,
 )
@@ -92,13 +93,7 @@ class TemporarySeatReservationView(GenericAPIView):
         except InvalidSeatSelectionError as exc:
             raise ValidationError(detail={"seat_ids": [str(exc)]}) from exc
         except SeatUnavailableError as exc:
-            return Response(
-                {
-                    "error": "SEAT_UNAVAILABLE",
-                    "message": str(exc),
-                },
-                status=status.HTTP_409_CONFLICT,
-            )
+            raise SeatAlreadyReservedApiException(detail=str(exc)) from exc
 
         response_payload = {
             "session_id": reservation_result["session_id"],
@@ -148,29 +143,11 @@ class CheckoutView(GenericAPIView):
         except CheckoutInvalidSeatSelectionError as exc:
             raise ValidationError(detail={"seat_ids": [str(exc)]}) from exc
         except ReservationOwnershipError as exc:
-            return Response(
-                {
-                    "error": "RESERVATION_OWNERSHIP_ERROR",
-                    "message": str(exc),
-                },
-                status=status.HTTP_403_FORBIDDEN,
-            )
+            raise PermissionDenied(detail=str(exc)) from exc
         except ExpiredReservationError as exc:
-            return Response(
-                {
-                    "error": "RESERVATION_EXPIRED",
-                    "message": str(exc),
-                },
-                status=status.HTTP_409_CONFLICT,
-            )
+            raise SeatAlreadyReservedApiException(detail=str(exc)) from exc
         except InvalidSeatStateError as exc:
-            return Response(
-                {
-                    "error": "INVALID_SEAT_STATE",
-                    "message": str(exc),
-                },
-                status=status.HTTP_409_CONFLICT,
-            )
+            raise SeatAlreadyReservedApiException(detail=str(exc)) from exc
 
         response_serializer = CheckoutResponseSerializer(checkout_result)
         return Response(response_serializer.data, status=status.HTTP_200_OK)

@@ -1,8 +1,37 @@
 import pytest
+from django.test import override_settings
 from rest_framework.test import APIClient
 
 from catalog.models import Movie, Room, Session
 from reservations.models import Seat, SeatRow, SessionSeat
+
+
+REST_FRAMEWORK_OVERRIDE = {
+    "DEFAULT_AUTHENTICATION_CLASSES": [
+        "rest_framework_simplejwt.authentication.JWTAuthentication",
+    ],
+    "DEFAULT_PERMISSION_CLASSES": [
+        "rest_framework.permissions.AllowAny",
+    ],
+    "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.PageNumberPagination",
+    "PAGE_SIZE": 10,
+    "DEFAULT_THROTTLE_CLASSES": [],
+    "DEFAULT_THROTTLE_RATES": {},
+    "EXCEPTION_HANDLER": "cinepolis_natal_api.exception_handler.standardized_exception_handler",
+}
+
+
+@pytest.fixture(autouse=True)
+def disable_throttling_for_module():
+    from catalog.views import SessionListCreateView
+
+    original_session_list_create_throttles = SessionListCreateView.throttle_classes
+    SessionListCreateView.throttle_classes = []
+
+    with override_settings(REST_FRAMEWORK=REST_FRAMEWORK_OVERRIDE):
+        yield
+
+    SessionListCreateView.throttle_classes = original_session_list_create_throttles
 
 
 @pytest.mark.django_db

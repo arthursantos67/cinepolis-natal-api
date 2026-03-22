@@ -46,7 +46,9 @@ class TestUserLoginView:
         )
 
         assert response.status_code == status.HTTP_401_UNAUTHORIZED
-        assert response.data["detail"] == "Invalid credentials."
+        assert response.data["error"]["code"] == "INVALID_CREDENTIALS"
+        assert response.data["error"]["status"] == 401
+        assert response.data["error"]["message"] == "Invalid credentials."
 
     def test_login_returns_401_with_unknown_email(self, api_client):
         response = api_client.post(
@@ -59,7 +61,9 @@ class TestUserLoginView:
         )
 
         assert response.status_code == status.HTTP_401_UNAUTHORIZED
-        assert response.data["detail"] == "Invalid credentials."
+        assert response.data["error"]["code"] == "INVALID_CREDENTIALS"
+        assert response.data["error"]["status"] == 401
+        assert response.data["error"]["message"] == "Invalid credentials."
 
     def test_login_returns_400_with_missing_fields(self, api_client):
         response = api_client.post(
@@ -69,8 +73,10 @@ class TestUserLoginView:
         )
 
         assert response.status_code == status.HTTP_400_BAD_REQUEST
-        assert "email" in response.data
-        assert "password" in response.data
+        assert response.data["error"]["code"] == "VALIDATION_FAILED"
+        assert response.data["error"]["status"] == 400
+        assert "email" in response.data["error"]["details"]
+        assert "password" in response.data["error"]["details"]
 
     def test_login_returns_400_with_invalid_email_format(self, api_client):
         response = api_client.post(
@@ -83,4 +89,6 @@ class TestUserLoginView:
         )
 
         assert response.status_code == status.HTTP_400_BAD_REQUEST
-        assert "email" in response.data
+        assert response.data["error"]["code"] == "VALIDATION_FAILED"
+        assert response.data["error"]["status"] == 400
+        assert "email" in response.data["error"]["details"]
