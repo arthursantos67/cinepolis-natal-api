@@ -1,6 +1,7 @@
 from django.db import transaction
 from django.utils import timezone
 
+from cinepolis_natal_api.logging_context import get_correlation_id
 from reservations.locks import SeatLockManager
 from reservations.models import SessionSeat, SessionSeatStatus, Ticket
 
@@ -87,10 +88,21 @@ class CheckoutService:
             )
             tickets.append(ticket)
 
+        ticket_ids = [str(ticket.id) for ticket in tickets]
+        correlation_id = get_correlation_id()
+
         transaction.on_commit(
             lambda: self._release_redis_locks(
                 session_id=session_id,
                 session_seats=purchased_seats,
+            )
+        )
+
+        transaction.on_commit(
+            lambda: self._enqueue_ticket_confirmation_email(
+                user_id=str(user.id),
+                ticket_ids=ticket_ids,
+                correlation_id=correlation_id,
             )
         )
 
@@ -122,3 +134,18 @@ class CheckoutService:
                 session_id=session_id,
                 seat_id=session_seat.seat_id,
             )
+
+    @staticmethod
+    def _enqueue_ticket_confirmation_email(*, user_id, ticket_ids, correlation_id):
+        from reservations.tasks import send_ticket_confirmation_email_task
+
+        apply_async_kwargs = {
+            "args": [user_id, ticket_ids],
+        }
+
+        if correlation_id:
+            apply_async_kwargs["headers"] = {
+                "correlation_id": correlation_id,
+            }
+
+        send_ticket_confirmation_email_task.apply_async(**apply_async_kwargs)
