@@ -42,7 +42,7 @@ def test_session_seat_map_returns_full_seat_map():
         ]
     )
 
-    response = client.get(f"/api/v1/catalog/sessions/{session.id}/seats/")
+    response = client.get(f"/api/v1/reservation/sessions/{session.id}/seats/")
 
     assert response.status_code == 200
     assert response.data == [
@@ -92,7 +92,7 @@ def test_session_seat_map_is_publicly_accessible():
 
     SessionSeat.objects.create(session=session, seat=seat)
 
-    response = client.get(f"/api/v1/catalog/sessions/{session.id}/seats/")
+    response = client.get(f"/api/v1/reservation/sessions/{session.id}/seats/")
 
     assert response.status_code == 200
 
@@ -101,6 +101,6 @@ def test_session_seat_map_is_publicly_accessible():
 def test_session_seat_map_returns_404_for_unknown_session():
     client = APIClient()
 
-    response = client.get("/api/v1/catalog/sessions/00000000-0000-0000-0000-000000000000/seats/")
+    response = client.get("/api/v1/reservation/sessions/00000000-0000-0000-0000-000000000000/seats/")
 
     assert response.status_code == 404
