@@ -1,0 +1,104 @@
+name: Main CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  validate:
+    name: Validate Django API
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_DB: cinepolis_natal
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d cinepolis_natal"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      redis:
+        image: redis:7
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      SECRET_KEY: ci-secret-key
+      DEBUG: "False"
+      ALLOWED_HOSTS: 127.0.0.1,localhost
+      POSTGRES_DB: cinepolis_natal
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_HOST: 127.0.0.1
+      POSTGRES_PORT: "5432"
+      REDIS_URL: redis://127.0.0.1:6379/1
+      CELERY_BROKER_URL: redis://127.0.0.1:6379/1
+      THROTTLE_ANON_RATE: 60/minute
+      THROTTLE_USER_RATE: 120/minute
+      THROTTLE_LOGIN_RATE: 5/minute
+      THROTTLE_RESERVATION_RATE: 10/minute
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.14
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+
+      - name: Install Poetry
+        run: pip install poetry
+
+      - name: Install dependencies with Poetry
+        run: poetry install --with dev --no-interaction --no-root
+
+      - name: Run Django system check
+        run: poetry run python manage.py check
+
+      - name: Run database migrations
+        run: poetry run python manage.py migrate --noinput
+
+      - name: Run test suite
+        run: poetry run pytest -q
+
+  docker-build:
+    name: Validate Docker build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Create temporary .env for compose validation
+        run: |
+          cat << 'EOF' > .env
+          SECRET_KEY=ci-secret-key
+          DEBUG=False
+          POSTGRES_DB=cinepolis_natal
+          POSTGRES_USER=postgres
+          POSTGRES_PASSWORD=postgres
+          POSTGRES_HOST=db
+          POSTGRES_PORT=5432
+          REDIS_URL=redis://redis:6379/1
+          CELERY_BROKER_URL=redis://redis:6379/1
+          EOF
+
+      - name: Validate Docker Compose configuration
+        run: docker compose -f docker-compose.yml config
+
+      - name: Build application image from Dockerfile
+        run: docker build -t cinepolis-natal-api:ci .
