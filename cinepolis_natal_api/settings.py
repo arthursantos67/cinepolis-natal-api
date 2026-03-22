@@ -185,14 +185,25 @@ CELERY_TASK_SERIALIZER = "json"
 # -------------------------------------------------------------------
 
 REST_FRAMEWORK = {
-    "DEFAULT_AUTHENTICATION_CLASSES": (
+    "DEFAULT_AUTHENTICATION_CLASSES": [
         "rest_framework_simplejwt.authentication.JWTAuthentication",
-    ),
-    "DEFAULT_PERMISSION_CLASSES": (
+    ],
+    "DEFAULT_PERMISSION_CLASSES": [
         "rest_framework.permissions.AllowAny",
-    ),
+    ],
     "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.PageNumberPagination",
     "PAGE_SIZE": 10,
+    "DEFAULT_THROTTLE_CLASSES": [
+        "cinepolis_natal_api.throttling.GlobalAnonRateThrottle",
+        "cinepolis_natal_api.throttling.GlobalUserRateThrottle",
+    ],
+    "DEFAULT_THROTTLE_RATES": {
+        "anon": os.getenv("THROTTLE_ANON_RATE", "60/minute"),
+        "user": os.getenv("THROTTLE_USER_RATE", "120/minute"),
+        "login": os.getenv("THROTTLE_LOGIN_RATE", "5/minute"),
+        "reservation": os.getenv("THROTTLE_RESERVATION_RATE", "10/minute"),
+    },
+    "EXCEPTION_HANDLER": "cinepolis_natal_api.throttling.throttling_exception_handler",
 }
 
 # -------------------------------------------------------------------
