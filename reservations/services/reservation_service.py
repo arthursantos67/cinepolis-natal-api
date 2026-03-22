@@ -1,4 +1,5 @@
 from datetime import timedelta
+from functools import partial
 
 from django.db import transaction
 from django.utils import timezone
@@ -11,6 +12,16 @@ from reservations.exceptions import (
 )
 from reservations.locks import SeatLockManager
 from reservations.models import SessionSeat, SessionSeatStatus
+
+
+def _schedule_expiration_tasks(session_seat_ids, expires_at):
+    from reservations.tasks import release_expired_session_seat
+
+    for session_seat_id in session_seat_ids:
+        release_expired_session_seat.apply_async(
+            args=[session_seat_id],
+            eta=expires_at,
+        )
 
 
 class TemporaryReservationService:
@@ -92,6 +103,19 @@ class TemporaryReservationService:
                 SessionSeat.objects.bulk_update(
                     locked_session_seats,
                     ["status", "locked_by_user", "lock_expires_at"],
+                )
+
+                reserved_session_seat_ids = [
+                    str(session_seat.id)
+                    for session_seat in locked_session_seats
+                ]
+
+                transaction.on_commit(
+                    partial(
+                        _schedule_expiration_tasks,
+                        reserved_session_seat_ids,
+                        expires_at,
+                    )
                 )
 
             return {

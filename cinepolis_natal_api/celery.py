@@ -7,4 +7,4 @@ app = Celery("cinepolis_natal_api")
 
 app.config_from_object("django.conf:settings", namespace="CELERY")
 
-app.autodiscover_tasks(["cinepolis_natal_api"])
+app.autodiscover_tasks()
