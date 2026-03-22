@@ -90,10 +90,14 @@ def send_ticket_confirmation_email_task(self, user_id: str, ticket_ids: list[str
             fail_silently=False,
         )
     except (smtplib.SMTPException, ConnectionError, TimeoutError, OSError):
+        task_id = getattr(self.request, "id", None)
         logger.exception(
-            "Ticket confirmation email delivery failed",
+            "Ticket confirmation email delivery failed | task_id=%s user_id=%s ticket_ids=%s",
+            task_id,
+            user_id,
+            normalized_ticket_ids,
             extra={
-                "task_id": getattr(self.request, "id", None),
+                "task_id": task_id,
                 "task_name": self.name,
                 "user_id": user_id,
                 "ticket_ids": normalized_ticket_ids,
