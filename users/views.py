@@ -1,3 +1,13 @@
+from django.utils import timezone
+from rest_framework.generics import CreateAPIView, ListAPIView
+
+from reservations.models import Ticket
+from users.serializers import (
+    UserLoginSerializer,
+    UserRegistrationSerializer,
+    UserTicketSerializer,
+)
+
 from rest_framework import status
 from rest_framework.generics import CreateAPIView
 from rest_framework.permissions import AllowAny, IsAuthenticated
@@ -48,3 +58,27 @@ class CurrentUserView(APIView):
             },
             status=status.HTTP_200_OK,
         )
+        
+class MyTicketsView(ListAPIView):
+    permission_classes = [IsAuthenticated]
+    serializer_class = UserTicketSerializer
+
+    def get_queryset(self):
+        queryset = (
+            Ticket.objects.filter(user=self.request.user)
+            .select_related(
+                "session_seat__session__movie",
+                "session_seat__seat__row",
+            )
+            .order_by("-created_at")
+        )
+
+        ticket_type = self.request.query_params.get("type")
+        now = timezone.now()
+
+        if ticket_type == "upcoming":
+            queryset = queryset.filter(session_seat__session__start_time__gt=now)
+        elif ticket_type == "past":
+            queryset = queryset.filter(session_seat__session__start_time__lte=now)
+
+        return queryset
