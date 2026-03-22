@@ -1,9 +1,13 @@
 from datetime import timedelta
 
 import pytest
+from django.core.cache import cache
+from django.test.utils import CaptureQueriesContext
+from django.db import connection
 from django.contrib.auth import get_user_model
 from django.utils import timezone
 from rest_framework.test import APIClient
+from rest_framework import status
 
 from catalog.models import Movie, Room, Session
 from reservations.models import SessionSeat, SessionSeatStatus, Seat, SeatRow
@@ -250,3 +254,29 @@ def test_checkout_should_be_atomic_when_one_seat_is_invalid():
 
     assert session_seat_valid.status == SessionSeatStatus.RESERVED
     assert session_seat_invalid.status == SessionSeatStatus.AVAILABLE
+    
+@pytest.mark.django_db
+def test_list_movies_should_use_cache_on_second_request():
+    cache.clear()
+
+    Movie.objects.create(
+        title="Cached Checkout Movie",
+        synopsis="Synopsis",
+        duration_minutes=120,
+        release_date="2026-03-21",
+        poster_url="https://example.com/poster.jpg",
+    )
+
+    api_client = APIClient()
+
+    with CaptureQueriesContext(connection) as first_request_queries:
+        first_response = api_client.get("/api/v1/catalog/movies/")
+
+    with CaptureQueriesContext(connection) as second_request_queries:
+        second_response = api_client.get("/api/v1/catalog/movies/")
+
+    assert first_response.status_code == status.HTTP_200_OK
+    assert second_response.status_code == status.HTTP_200_OK
+    assert first_response.data == second_response.data
+    assert len(second_request_queries) < len(first_request_queries)
+    cache.clear()

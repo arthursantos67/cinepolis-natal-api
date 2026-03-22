@@ -32,6 +32,7 @@ from reservations.services.checkout_service import (
 class SessionSeatMapView(ListAPIView):
     serializer_class = SessionSeatMapItemSerializer
     permission_classes = [AllowAny]
+    pagination_class = None
 
     def get_queryset(self):
         session = get_object_or_404(Session, id=self.kwargs["session_id"])

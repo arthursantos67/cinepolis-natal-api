@@ -1,3 +1,6 @@
+from django.core.cache import cache
+from django_redis import get_redis_connection
+from rest_framework.response import Response
 from rest_framework.generics import ListCreateAPIView, RetrieveDestroyAPIView
 from rest_framework.permissions import AllowAny
 
@@ -11,6 +14,16 @@ from catalog.serializers import (
     SessionWriteSerializer,
 )
 
+def invalidate_movie_list_cache():
+    redis = get_redis_connection("default")
+    for key in redis.scan_iter("*catalog:movies:*"):
+        redis.delete(key)
+
+
+def invalidate_session_list_cache():
+    redis = get_redis_connection("default")
+    for key in redis.scan_iter("*catalog:sessions:*"):
+        redis.delete(key)
 
 class GenreListCreateView(ListCreateAPIView):
     queryset = Genre.objects.all()
@@ -27,11 +40,28 @@ class GenreDetailView(RetrieveDestroyAPIView):
 class MovieListCreateView(ListCreateAPIView):
     queryset = Movie.objects.prefetch_related("genres").all()
     permission_classes = [AllowAny]
+    CACHE_TTL_SECONDS = 300
 
     def get_serializer_class(self):
         if self.request.method == "GET":
             return MovieReadSerializer
         return MovieWriteSerializer
+
+    def list(self, request, *args, **kwargs):
+        cache_key = f"catalog:movies:{request.get_full_path()}"
+        cached_response = cache.get(cache_key)
+
+        if cached_response is not None:
+            return Response(cached_response)
+
+        response = super().list(request, *args, **kwargs)
+        cache.set(cache_key, response.data, timeout=self.CACHE_TTL_SECONDS)
+        return response
+
+    def create(self, request, *args, **kwargs):
+        response = super().create(request, *args, **kwargs)
+        invalidate_movie_list_cache()
+        return response
 
 
 class MovieDetailView(RetrieveDestroyAPIView):
@@ -42,6 +72,11 @@ class MovieDetailView(RetrieveDestroyAPIView):
         if self.request.method == "GET":
             return MovieReadSerializer
         return MovieWriteSerializer
+
+    def destroy(self, request, *args, **kwargs):
+        response = super().destroy(request, *args, **kwargs)
+        invalidate_movie_list_cache()
+        return response
 
 
 class RoomListCreateView(ListCreateAPIView):
@@ -61,11 +96,28 @@ class SessionListCreateView(ListCreateAPIView):
         "movie__genres"
     ).all()
     permission_classes = [AllowAny]
+    CACHE_TTL_SECONDS = 300
 
     def get_serializer_class(self):
         if self.request.method == "GET":
             return SessionReadSerializer
         return SessionWriteSerializer
+
+    def list(self, request, *args, **kwargs):
+        cache_key = f"catalog:sessions:{request.get_full_path()}"
+        cached_response = cache.get(cache_key)
+
+        if cached_response is not None:
+            return Response(cached_response)
+
+        response = super().list(request, *args, **kwargs)
+        cache.set(cache_key, response.data, timeout=self.CACHE_TTL_SECONDS)
+        return response
+
+    def create(self, request, *args, **kwargs):
+        response = super().create(request, *args, **kwargs)
+        invalidate_session_list_cache()
+        return response
 
 
 class SessionDetailView(RetrieveDestroyAPIView):
@@ -78,3 +130,8 @@ class SessionDetailView(RetrieveDestroyAPIView):
         if self.request.method == "GET":
             return SessionReadSerializer
         return SessionWriteSerializer
+
+    def destroy(self, request, *args, **kwargs):
+        response = super().destroy(request, *args, **kwargs)
+        invalidate_session_list_cache()
+        return response
