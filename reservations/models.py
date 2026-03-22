@@ -180,3 +180,68 @@ class SessionSeat(models.Model):
             f"{self.seat.row.name}{self.seat.number} | "
             f"{self.status}"
         )
+        
+class Ticket(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    user = models.ForeignKey(
+        "users.User",
+        on_delete=models.PROTECT,
+        related_name="tickets",
+    )
+    session_seat = models.OneToOneField(
+        "reservations.SessionSeat",
+        on_delete=models.PROTECT,
+        related_name="ticket",
+    )
+    ticket_code = models.CharField(max_length=64, unique=True, editable=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "reservation_tickets"
+        ordering = ["-created_at"]
+        indexes = [
+            models.Index(fields=["user"], name="ticket_user_idx"),
+            models.Index(fields=["ticket_code"], name="ticket_code_idx"),
+        ]
+
+    @staticmethod
+    def generate_ticket_code() -> str:
+        return uuid.uuid4().hex.upper()
+
+    def clean(self):
+        if self.session_seat_id and self.user_id:
+            if self.session_seat.status != SessionSeatStatus.PURCHASED:
+                raise ValidationError(
+                    {
+                        "session_seat": (
+                            "Tickets can only be created for purchased session seats."
+                        )
+                    }
+                )
+
+            if self.session_seat.locked_by_user is not None:
+                raise ValidationError(
+                    {
+                        "session_seat": (
+                            "Purchased session seats linked to tickets cannot keep a locked user."
+                        )
+                    }
+                )
+
+            if self.session_seat.lock_expires_at is not None:
+                raise ValidationError(
+                    {
+                        "session_seat": (
+                            "Purchased session seats linked to tickets cannot keep a lock expiration."
+                        )
+                    }
+                )
+
+    def save(self, *args, **kwargs):
+        if not self.ticket_code:
+            self.ticket_code = self.generate_ticket_code()
+        self.full_clean()
+        super().save(*args, **kwargs)
+
+    def __str__(self) -> str:
+        return f"{self.ticket_code} | {self.user.email}"
