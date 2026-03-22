@@ -1,6 +1,10 @@
 from django.urls import path
 
-from reservations.views import SessionSeatMapView, TemporarySeatReservationView
+from reservations.views import (
+    CheckoutView,
+    SessionSeatMapView,
+    TemporarySeatReservationView,
+)
 
 urlpatterns = [
     path(
@@ -12,5 +16,10 @@ urlpatterns = [
         "sessions/<uuid:session_id>/reservations/",
         TemporarySeatReservationView.as_view(),
         name="temporary-seat-reservation",
+    ),
+    path(
+        "checkout/",
+        CheckoutView.as_view(),
+        name="checkout",
     ),
 ]
