@@ -181,10 +181,6 @@ This is the recommended and validated way to run the project locally, as it prov
 
 ### Full test suite
 
-- Poetry:
-	```bash
-	poetry run pytest -q
-	```
 - Docker:
 	```bash
 	docker compose exec web pytest -q
@@ -221,7 +217,7 @@ export BASE_URL="http://localhost:8000"
 Optional bootstrap via Django shell (minimal base data):
 
 ```bash
-poetry run python manage.py shell
+	docker compose exec web pytest -q
 ```
 
 ```python
