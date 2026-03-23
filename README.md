@@ -114,48 +114,17 @@ The table below maps implemented requirements to concrete endpoints/components.
 - Background task offloading via Celery.
 - Rate limiting scopes: `anon`, `user`, `login`, `reservation`.
 
+
 ## Setup Instructions
-
-### Local setup (Poetry)
-
-1. Install Poetry
-	 ```bash
-	 pip install poetry
-	 ```
-2. Install dependencies
-	 ```bash
-	 poetry install --with dev
-	 ```
-3. Configure environment variables
-	 ```bash
-	 cp .env.example .env
-	 ```
-4. Ensure PostgreSQL and Redis are running and reachable.
-5. Run migrations
-	 ```bash
-	 poetry run python manage.py migrate
-	 ```
-6. Run API
-	 ```bash
-	 poetry run python manage.py runserver 0.0.0.0:8000
-	 ```
-7. (Optional) Run Celery worker
-	 ```bash
-	 poetry run celery -A cinepolis_natal_api worker -l info
-	 ```
 
 ### Docker setup (recommended)
 
 ```bash
-cp .env.example .env
 docker compose up --build
 ```
+This is the recommended and validated way to run the project locally, as it provisions the full runtime stack required by the application.
 
-Services started by Compose:
-- `web` (Django API)
-- `db` (PostgreSQL)
-- `redis`
-- `celery`
+---
 
 ## Environment Variables
 
