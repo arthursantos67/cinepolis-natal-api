@@ -16,7 +16,7 @@ These capabilities are implemented with emphasis on data consistency, concurrenc
 
 ## Documentation
 
-Detailed implementation-aligned requirements are available in [`cinepolis-natal-api-srs.md`](./cinepolis-natal-api-srs.md).
+Detailed implementation-aligned requirements are available in [`cinepolis-natal-api-srs.md`](./software-requirements-specification.md.md).
 
 ## Tech Stack
 
