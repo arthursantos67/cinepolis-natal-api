@@ -1,0 +1,1317 @@
+{
+  "info": {
+    "_postman_id": "d0a34dd8-8e26-4d33-b9fd-cinepolis-natal-api",
+    "name": "Cinepolis Natal API",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "description": "Colecao para validar manualmente os fluxos principais da Cinepolis Natal API."
+  },
+  "item": [
+    {
+      "name": "00 - Support",
+      "item": [
+        {
+          "name": "Health Check",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{BASE_URL}}/health/",
+              "host": [
+                "{{BASE_URL}}"
+              ],
+              "path": [
+                "health",
+                ""
+              ]
+            }
+          }
+        },
+        {
+          "name": "Swagger UI",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{BASE_URL}}/api/docs/",
+              "host": [
+                "{{BASE_URL}}"
+              ],
+              "path": [
+                "api",
+                "docs",
+                ""
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "01 - Auth",
+      "item": [
+        {
+          "name": "Register User",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"manual@example.com\",\n  \"username\": \"manual\",\n  \"password\": \"StrongPass123!\"\n}"
+            },
+            "url": {
+              "raw": "{{BASE_URL}}/api/v1/auth/register/",
+              "host": [
+                "{{BASE_URL}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "register",
+                ""
+              ]
+            }
+          }
+        },
+        {
+          "name": "Login",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const data = pm.response.json();",
+                  "if (data.access) pm.collectionVariables.set('ACCESS_TOKEN', data.access);",
+                  "if (data.refresh) pm.collectionVariables.set('REFRESH_TOKEN', data.refresh);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"manual@example.com\",\n  \"password\": \"StrongPass123!\"\n}"
+            },
+            "url": {
+              "raw": "{{BASE_URL}}/api/v1/auth/login/",
+              "host": [
+                "{{BASE_URL}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "login",
+                ""
+              ]
+            }
+          }
+        },
+        {
+          "name": "Auth Me",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{ACCESS_TOKEN}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{BASE_URL}}/api/v1/auth/me/",
+              "host": [
+                "{{BASE_URL}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "me",
+                ""
+              ]
+            }
+          }
+        },
+        {
+          "name": "Users Me",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{ACCESS_TOKEN}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{BASE_URL}}/api/v1/users/me/",
+              "host": [
+                "{{BASE_URL}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "users",
+                "me",
+                ""
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "02 - Catalog",
+      "item": [
+        {
+          "name": "Create Genre",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const data = pm.response.json();",
+                  "if (data.id) pm.collectionVariables.set('GENRE_ID', data.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Sci-Fi Manual\"\n}"
+            },
+            "url": {
+              "raw": "{{BASE_URL}}/api/v1/catalog/genres/",
+              "host": [
+                "{{BASE_URL}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "catalog",
+                "genres",
+                ""
+              ]
+            }
+          }
+        },
+        {
+          "name": "Update Genre",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Science Fiction Manual\"\n}"
+            },
+            "url": {
+              "raw": "{{BASE_URL}}/api/v1/catalog/genres/{{GENRE_ID}}/",
+              "host": [
+                "{{BASE_URL}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "catalog",
+                "genres",
+                "{{GENRE_ID}}",
+                ""
+              ]
+            }
+          }
+        },
+        {
+          "name": "Create Movie",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const data = pm.response.json();",
+                  "if (data.id) pm.collectionVariables.set('MOVIE_ID', data.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Interstellar Manual\",\n  \"genres\": [\"{{GENRE_ID}}\"],\n  \"synopsis\": \"Space exploration.\",\n  \"duration_minutes\": 169,\n  \"release_date\": \"2014-11-07\",\n  \"poster_url\": \"https://example.com/interstellar.jpg\"\n}"
+            },
+            "url": {
+              "raw": "{{BASE_URL}}/api/v1/catalog/movies/",
+              "host": [
+                "{{BASE_URL}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "catalog",
+                "movies",
+                ""
+              ]
+            }
+          }
+        },
+        {
+          "name": "Update Movie",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Interstellar Manual Updated\"\n}"
+            },
+            "url": {
+              "raw": "{{BASE_URL}}/api/v1/catalog/movies/{{MOVIE_ID}}/",
+              "host": [
+                "{{BASE_URL}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "catalog",
+                "movies",
+                "{{MOVIE_ID}}",
+                ""
+              ]
+            }
+          }
+        },
+        {
+          "name": "Create Room",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const data = pm.response.json();",
+                  "if (data.id) pm.collectionVariables.set('ROOM_ID', data.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Room Manual\",\n  \"capacity\": 20\n}"
+            },
+            "url": {
+              "raw": "{{BASE_URL}}/api/v1/catalog/rooms/",
+              "host": [
+                "{{BASE_URL}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "catalog",
+                "rooms",
+                ""
+              ]
+            }
+          }
+        },
+        {
+          "name": "Create Extra Room (For Invalid Session Room Change)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const data = pm.response.json();",
+                  "if (data.id) pm.collectionVariables.set('OTHER_ROOM_ID', data.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Room Manual Extra\",\n  \"capacity\": 30\n}"
+            },
+            "url": {
+              "raw": "{{BASE_URL}}/api/v1/catalog/rooms/",
+              "host": [
+                "{{BASE_URL}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "catalog",
+                "rooms",
+                ""
+              ]
+            }
+          }
+        },
+        {
+          "name": "Update Room",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Room Manual Prime\",\n  \"capacity\": 25\n}"
+            },
+            "url": {
+              "raw": "{{BASE_URL}}/api/v1/catalog/rooms/{{ROOM_ID}}/",
+              "host": [
+                "{{BASE_URL}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "catalog",
+                "rooms",
+                "{{ROOM_ID}}",
+                ""
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "03 - Reservation Structure",
+      "item": [
+        {
+          "name": "Create Seat Row",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const data = pm.response.json();",
+                  "if (data.id) pm.collectionVariables.set('SEAT_ROW_ID', data.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"room\": \"{{ROOM_ID}}\",\n  \"name\": \"A\"\n}"
+            },
+            "url": {
+              "raw": "{{BASE_URL}}/api/v1/reservation/seat-rows/",
+              "host": [
+                "{{BASE_URL}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "reservation",
+                "seat-rows",
+                ""
+              ]
+            }
+          }
+        },
+        {
+          "name": "Update Seat Row",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"B\"\n}"
+            },
+            "url": {
+              "raw": "{{BASE_URL}}/api/v1/reservation/seat-rows/{{SEAT_ROW_ID}}/",
+              "host": [
+                "{{BASE_URL}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "reservation",
+                "seat-rows",
+                "{{SEAT_ROW_ID}}",
+                ""
+              ]
+            }
+          }
+        },
+        {
+          "name": "Create Seat",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const data = pm.response.json();",
+                  "if (data.id) pm.collectionVariables.set('SEAT_ID', data.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"row\": \"{{SEAT_ROW_ID}}\",\n  \"number\": 1\n}"
+            },
+            "url": {
+              "raw": "{{BASE_URL}}/api/v1/reservation/seats/",
+              "host": [
+                "{{BASE_URL}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "reservation",
+                "seats",
+                ""
+              ]
+            }
+          }
+        },
+        {
+          "name": "Update Seat",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"number\": 2\n}"
+            },
+            "url": {
+              "raw": "{{BASE_URL}}/api/v1/reservation/seats/{{SEAT_ID}}/",
+              "host": [
+                "{{BASE_URL}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "reservation",
+                "seats",
+                "{{SEAT_ID}}",
+                ""
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "04 - Session Flow",
+      "item": [
+        {
+          "name": "Create Session",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const data = pm.response.json();",
+                  "if (data.id) pm.collectionVariables.set('SESSION_ID', data.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"movie\": \"{{MOVIE_ID}}\",\n  \"room\": \"{{ROOM_ID}}\",\n  \"start_time\": \"2026-04-01T18:00:00Z\",\n  \"end_time\": \"2026-04-01T20:30:00Z\"\n}"
+            },
+            "url": {
+              "raw": "{{BASE_URL}}/api/v1/catalog/sessions/",
+              "host": [
+                "{{BASE_URL}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "catalog",
+                "sessions",
+                ""
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Session",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{BASE_URL}}/api/v1/catalog/sessions/{{SESSION_ID}}/",
+              "host": [
+                "{{BASE_URL}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "catalog",
+                "sessions",
+                "{{SESSION_ID}}",
+                ""
+              ]
+            }
+          }
+        },
+        {
+          "name": "Update Session End Time",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"end_time\": \"2026-04-01T20:45:00Z\"\n}"
+            },
+            "url": {
+              "raw": "{{BASE_URL}}/api/v1/catalog/sessions/{{SESSION_ID}}/",
+              "host": [
+                "{{BASE_URL}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "catalog",
+                "sessions",
+                "{{SESSION_ID}}",
+                ""
+              ]
+            }
+          }
+        },
+        {
+          "name": "Update Session Room (Should Fail)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"room\": \"{{OTHER_ROOM_ID}}\"\n}"
+            },
+            "url": {
+              "raw": "{{BASE_URL}}/api/v1/catalog/sessions/{{SESSION_ID}}/",
+              "host": [
+                "{{BASE_URL}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "catalog",
+                "sessions",
+                "{{SESSION_ID}}",
+                ""
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "05 - Reservation and Checkout",
+      "item": [
+        {
+          "name": "Get Seat Map",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{BASE_URL}}/api/v1/reservation/sessions/{{SESSION_ID}}/seats/",
+              "host": [
+                "{{BASE_URL}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "reservation",
+                "sessions",
+                "{{SESSION_ID}}",
+                "seats",
+                ""
+              ]
+            }
+          }
+        },
+        {
+          "name": "List Session Seats and Capture SESSION_SEAT_ID",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const data = pm.response.json();",
+                  "const results = Array.isArray(data.results) ? data.results : [];",
+                  "const match = results.find(item => item.session === pm.collectionVariables.get('SESSION_ID') && item.seat === pm.collectionVariables.get('SEAT_ID'));",
+                  "if (match && match.id) pm.collectionVariables.set('SESSION_SEAT_ID', match.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{BASE_URL}}/api/v1/reservation/session-seats/",
+              "host": [
+                "{{BASE_URL}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "reservation",
+                "session-seats",
+                ""
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Session Seat",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{BASE_URL}}/api/v1/reservation/session-seats/{{SESSION_SEAT_ID}}/",
+              "host": [
+                "{{BASE_URL}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "reservation",
+                "session-seats",
+                "{{SESSION_SEAT_ID}}",
+                ""
+              ]
+            }
+          }
+        },
+        {
+          "name": "Patch Session Seat (Should Fail)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"PURCHASED\"\n}"
+            },
+            "url": {
+              "raw": "{{BASE_URL}}/api/v1/reservation/session-seats/{{SESSION_SEAT_ID}}/",
+              "host": [
+                "{{BASE_URL}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "reservation",
+                "session-seats",
+                "{{SESSION_SEAT_ID}}",
+                ""
+              ]
+            }
+          }
+        },
+        {
+          "name": "Temporary Reservation",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{ACCESS_TOKEN}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"seat_ids\": [\"{{SEAT_ID}}\"]\n}"
+            },
+            "url": {
+              "raw": "{{BASE_URL}}/api/v1/reservation/sessions/{{SESSION_ID}}/reservations/",
+              "host": [
+                "{{BASE_URL}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "reservation",
+                "sessions",
+                "{{SESSION_ID}}",
+                "reservations",
+                ""
+              ]
+            }
+          }
+        },
+        {
+          "name": "Temporary Reservation Again (Should Conflict)",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{ACCESS_TOKEN}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"seat_ids\": [\"{{SEAT_ID}}\"]\n}"
+            },
+            "url": {
+              "raw": "{{BASE_URL}}/api/v1/reservation/sessions/{{SESSION_ID}}/reservations/",
+              "host": [
+                "{{BASE_URL}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "reservation",
+                "sessions",
+                "{{SESSION_ID}}",
+                "reservations",
+                ""
+              ]
+            }
+          }
+        },
+        {
+          "name": "Checkout",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{ACCESS_TOKEN}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"session_id\": \"{{SESSION_ID}}\",\n  \"seat_ids\": [\"{{SEAT_ID}}\"]\n}"
+            },
+            "url": {
+              "raw": "{{BASE_URL}}/api/v1/reservation/checkout/",
+              "host": [
+                "{{BASE_URL}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "reservation",
+                "checkout",
+                ""
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "06 - Tickets",
+      "item": [
+        {
+          "name": "List My Tickets",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{ACCESS_TOKEN}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{BASE_URL}}/api/v1/users/me/tickets/",
+              "host": [
+                "{{BASE_URL}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "users",
+                "me",
+                "tickets",
+                ""
+              ]
+            }
+          }
+        },
+        {
+          "name": "List Tickets (Admin) and Capture TICKET_ID",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const data = pm.response.json();",
+                  "const results = Array.isArray(data.results) ? data.results : [];",
+                  "const match = results.find(item => item.session_seat === pm.collectionVariables.get('SESSION_SEAT_ID'));",
+                  "if (match && match.id) pm.collectionVariables.set('TICKET_ID', match.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{BASE_URL}}/api/v1/reservation/tickets/",
+              "host": [
+                "{{BASE_URL}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "reservation",
+                "tickets",
+                ""
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Ticket",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{BASE_URL}}/api/v1/reservation/tickets/{{TICKET_ID}}/",
+              "host": [
+                "{{BASE_URL}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "reservation",
+                "tickets",
+                "{{TICKET_ID}}",
+                ""
+              ]
+            }
+          }
+        },
+        {
+          "name": "Patch Ticket (Should Fail)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{}"
+            },
+            "url": {
+              "raw": "{{BASE_URL}}/api/v1/reservation/tickets/{{TICKET_ID}}/",
+              "host": [
+                "{{BASE_URL}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "reservation",
+                "tickets",
+                "{{TICKET_ID}}",
+                ""
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "07 - Cleanup",
+      "item": [
+        {
+          "name": "Delete Ticket",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{BASE_URL}}/api/v1/reservation/tickets/{{TICKET_ID}}/",
+              "host": [
+                "{{BASE_URL}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "reservation",
+                "tickets",
+                "{{TICKET_ID}}",
+                ""
+              ]
+            }
+          }
+        },
+        {
+          "name": "Delete Session Seat",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{BASE_URL}}/api/v1/reservation/session-seats/{{SESSION_SEAT_ID}}/",
+              "host": [
+                "{{BASE_URL}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "reservation",
+                "session-seats",
+                "{{SESSION_SEAT_ID}}",
+                ""
+              ]
+            }
+          }
+        },
+        {
+          "name": "Delete Session",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{BASE_URL}}/api/v1/catalog/sessions/{{SESSION_ID}}/",
+              "host": [
+                "{{BASE_URL}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "catalog",
+                "sessions",
+                "{{SESSION_ID}}",
+                ""
+              ]
+            }
+          }
+        },
+        {
+          "name": "Delete Seat",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{BASE_URL}}/api/v1/reservation/seats/{{SEAT_ID}}/",
+              "host": [
+                "{{BASE_URL}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "reservation",
+                "seats",
+                "{{SEAT_ID}}",
+                ""
+              ]
+            }
+          }
+        },
+        {
+          "name": "Delete Seat Row",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{BASE_URL}}/api/v1/reservation/seat-rows/{{SEAT_ROW_ID}}/",
+              "host": [
+                "{{BASE_URL}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "reservation",
+                "seat-rows",
+                "{{SEAT_ROW_ID}}",
+                ""
+              ]
+            }
+          }
+        },
+        {
+          "name": "Delete Movie",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{BASE_URL}}/api/v1/catalog/movies/{{MOVIE_ID}}/",
+              "host": [
+                "{{BASE_URL}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "catalog",
+                "movies",
+                "{{MOVIE_ID}}",
+                ""
+              ]
+            }
+          }
+        },
+        {
+          "name": "Delete Genre",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{BASE_URL}}/api/v1/catalog/genres/{{GENRE_ID}}/",
+              "host": [
+                "{{BASE_URL}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "catalog",
+                "genres",
+                "{{GENRE_ID}}",
+                ""
+              ]
+            }
+          }
+        },
+        {
+          "name": "Delete Room",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{BASE_URL}}/api/v1/catalog/rooms/{{ROOM_ID}}/",
+              "host": [
+                "{{BASE_URL}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "catalog",
+                "rooms",
+                "{{ROOM_ID}}",
+                ""
+              ]
+            }
+          }
+        },
+        {
+          "name": "Delete Extra Room",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{BASE_URL}}/api/v1/catalog/rooms/{{OTHER_ROOM_ID}}/",
+              "host": [
+                "{{BASE_URL}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "catalog",
+                "rooms",
+                "{{OTHER_ROOM_ID}}",
+                ""
+              ]
+            }
+          }
+        }
+      ]
+    }
+  ],
+  "variable": [
+    {
+      "key": "BASE_URL",
+      "value": "http://localhost:8000"
+    },
+    {
+      "key": "ACCESS_TOKEN",
+      "value": ""
+    },
+    {
+      "key": "REFRESH_TOKEN",
+      "value": ""
+    },
+    {
+      "key": "GENRE_ID",
+      "value": ""
+    },
+    {
+      "key": "MOVIE_ID",
+      "value": ""
+    },
+    {
+      "key": "ROOM_ID",
+      "value": ""
+    },
+    {
+      "key": "OTHER_ROOM_ID",
+      "value": ""
+    },
+    {
+      "key": "SEAT_ROW_ID",
+      "value": ""
+    },
+    {
+      "key": "SEAT_ID",
+      "value": ""
+    },
+    {
+      "key": "SESSION_ID",
+      "value": ""
+    },
+    {
+      "key": "SESSION_SEAT_ID",
+      "value": ""
+    },
+    {
+      "key": "TICKET_ID",
+      "value": ""
+    }
+  ]
+}

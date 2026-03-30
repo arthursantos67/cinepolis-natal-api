@@ -1,6 +1,41 @@
 from rest_framework import serializers
 
-from reservations.models import SessionSeat
+from reservations.models import Seat, SeatRow, SessionSeat, Ticket
+
+
+class SeatRowSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = SeatRow
+        fields = ["id", "room", "name"]
+        read_only_fields = ["id"]
+
+
+class SeatSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Seat
+        fields = ["id", "row", "number"]
+        read_only_fields = ["id"]
+
+
+class SessionSeatSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = SessionSeat
+        fields = [
+            "id",
+            "session",
+            "seat",
+            "status",
+            "locked_by_user",
+            "lock_expires_at",
+        ]
+        read_only_fields = ["id"]
+
+
+class TicketSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Ticket
+        fields = ["id", "user", "session_seat", "ticket_code", "created_at"]
+        read_only_fields = ["id", "ticket_code", "created_at"]
 
 
 class SessionSeatMapItemSerializer(serializers.ModelSerializer):
