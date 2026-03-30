@@ -159,6 +159,76 @@ class TestCatalogApi:
 
         assert response.status_code == status.HTTP_204_NO_CONTENT
         assert not Genre.objects.filter(id=genre.id).exists()
+
+    def test_update_genre_returns_200(self, api_client, genre, movie):
+        response = api_client.patch(
+            f"/api/v1/catalog/genres/{genre.id}/",
+            {"name": "Drama Updated"},
+            format="json",
+        )
+
+        assert response.status_code == status.HTTP_200_OK
+        assert response.data["name"] == "Drama Updated"
+        genre.refresh_from_db()
+        assert genre.name == "Drama Updated"
+        movie.refresh_from_db()
+        assert movie.genres.filter(name="Drama Updated").exists()
+
+    def test_update_movie_returns_200(self, api_client, movie):
+        response = api_client.patch(
+            f"/api/v1/catalog/movies/{movie.id}/",
+            {"title": "The Godfather Remastered"},
+            format="json",
+        )
+
+        assert response.status_code == status.HTTP_200_OK
+        movie.refresh_from_db()
+        assert movie.title == "The Godfather Remastered"
+
+    def test_update_room_returns_200(self, api_client, room):
+        response = api_client.patch(
+            f"/api/v1/catalog/rooms/{room.id}/",
+            {"name": "Room Prime", "capacity": 90},
+            format="json",
+        )
+
+        assert response.status_code == status.HTTP_200_OK
+        assert response.data["name"] == "Room Prime"
+        assert response.data["capacity"] == 90
+        room.refresh_from_db()
+        assert room.name == "Room Prime"
+        assert room.capacity == 90
+
+    def test_update_session_returns_200(self, api_client, session):
+        new_end_time = (session.end_time + timedelta(minutes=30)).isoformat().replace(
+            "+00:00",
+            "Z",
+        )
+
+        response = api_client.patch(
+            f"/api/v1/catalog/sessions/{session.id}/",
+            {"end_time": new_end_time},
+            format="json",
+        )
+
+        assert response.status_code == status.HTTP_200_OK
+        session.refresh_from_db()
+        assert session.end_time == timezone.datetime.fromisoformat(
+            new_end_time.replace("Z", "+00:00")
+        )
+
+    def test_update_session_should_reject_room_change(self, api_client, session):
+        other_room = Room.objects.create(name="Room 2", capacity=80)
+
+        response = api_client.patch(
+            f"/api/v1/catalog/sessions/{session.id}/",
+            {"room": str(other_room.id)},
+            format="json",
+        )
+
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert response.data["error"]["code"] == "VALIDATION_FAILED"
+        assert "room" in response.data["error"]["details"]
         
     def test_list_movies_should_use_cache_on_second_request(self, api_client, movie):
         cache.clear()
@@ -264,6 +334,76 @@ class TestCatalogApi:
         assert second_response.status_code == status.HTTP_200_OK
         assert second_response.data["count"] == initial_count - 1
 
+    def test_genre_update_should_invalidate_movie_and_session_list_caches(
+        self,
+        api_client,
+        genre,
+        session,
+    ):
+        cache.clear()
+
+        first_movie_response = api_client.get("/api/v1/catalog/movies/")
+        first_session_response = api_client.get("/api/v1/catalog/sessions/")
+
+        assert first_movie_response.status_code == status.HTTP_200_OK
+        assert first_session_response.status_code == status.HTTP_200_OK
+        assert first_movie_response.data["results"][0]["genres"][0]["name"] == "Crime"
+
+        update_response = api_client.patch(
+            f"/api/v1/catalog/genres/{genre.id}/",
+            {"name": "Drama Updated"},
+            format="json",
+        )
+        assert update_response.status_code == status.HTTP_200_OK
+
+        second_movie_response = api_client.get("/api/v1/catalog/movies/")
+        second_session_response = api_client.get("/api/v1/catalog/sessions/")
+
+        assert second_movie_response.status_code == status.HTTP_200_OK
+        assert second_session_response.status_code == status.HTTP_200_OK
+        movie_genre_names = [
+            item["name"]
+            for item in second_movie_response.data["results"][0]["genres"]
+        ]
+        session_genre_names = [
+            item["name"]
+            for item in second_session_response.data["results"][0]["movie"]["genres"]
+        ]
+        assert "Drama Updated" in movie_genre_names
+        assert "Drama Updated" in session_genre_names
+
+    def test_movie_update_should_invalidate_movie_and_session_list_caches(
+        self,
+        api_client,
+        movie,
+        session,
+    ):
+        cache.clear()
+
+        first_movie_response = api_client.get("/api/v1/catalog/movies/")
+        first_session_response = api_client.get("/api/v1/catalog/sessions/")
+
+        assert first_movie_response.status_code == status.HTTP_200_OK
+        assert first_session_response.status_code == status.HTTP_200_OK
+
+        update_response = api_client.patch(
+            f"/api/v1/catalog/movies/{movie.id}/",
+            {"title": "The Godfather Updated"},
+            format="json",
+        )
+        assert update_response.status_code == status.HTTP_200_OK
+
+        second_movie_response = api_client.get("/api/v1/catalog/movies/")
+        second_session_response = api_client.get("/api/v1/catalog/sessions/")
+
+        assert second_movie_response.status_code == status.HTTP_200_OK
+        assert second_session_response.status_code == status.HTTP_200_OK
+        assert second_movie_response.data["results"][0]["title"] == "The Godfather Updated"
+        assert (
+            second_session_response.data["results"][0]["movie"]["title"]
+            == "The Godfather Updated"
+        )
+
     def test_session_list_cache_should_be_invalidated_after_session_deletion(
         self,
         api_client,
@@ -283,3 +423,52 @@ class TestCatalogApi:
         second_response = api_client.get("/api/v1/catalog/sessions/")
         assert second_response.status_code == status.HTTP_200_OK
         assert second_response.data["count"] == initial_count - 1
+
+    def test_room_update_should_invalidate_session_list_cache(
+        self,
+        api_client,
+        room,
+        session,
+    ):
+        cache.clear()
+
+        first_response = api_client.get("/api/v1/catalog/sessions/")
+        assert first_response.status_code == status.HTTP_200_OK
+        assert first_response.data["results"][0]["room"]["name"] == "Room 1"
+
+        update_response = api_client.patch(
+            f"/api/v1/catalog/rooms/{room.id}/",
+            {"name": "Room Prime", "capacity": 70},
+            format="json",
+        )
+        assert update_response.status_code == status.HTTP_200_OK
+
+        second_response = api_client.get("/api/v1/catalog/sessions/")
+        assert second_response.status_code == status.HTTP_200_OK
+        assert second_response.data["results"][0]["room"]["name"] == "Room Prime"
+
+    def test_session_update_should_invalidate_session_list_cache(
+        self,
+        api_client,
+        session,
+    ):
+        cache.clear()
+
+        first_response = api_client.get("/api/v1/catalog/sessions/")
+        assert first_response.status_code == status.HTTP_200_OK
+
+        new_end_time = (session.end_time + timedelta(minutes=30)).isoformat().replace(
+            "+00:00",
+            "Z",
+        )
+
+        update_response = api_client.patch(
+            f"/api/v1/catalog/sessions/{session.id}/",
+            {"end_time": new_end_time},
+            format="json",
+        )
+        assert update_response.status_code == status.HTTP_200_OK
+
+        second_response = api_client.get("/api/v1/catalog/sessions/")
+        assert second_response.status_code == status.HTTP_200_OK
+        assert second_response.data["results"][0]["end_time"] == new_end_time

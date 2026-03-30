@@ -101,6 +101,24 @@ class SessionWriteSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ["id", "created_at", "updated_at"]
 
+    def validate(self, attrs):
+        attrs = super().validate(attrs)
+
+        if (
+            self.instance is not None
+            and "room" in attrs
+            and attrs["room"] != self.instance.room
+        ):
+            raise serializers.ValidationError(
+                {
+                    "room": (
+                        "Updating the room of an existing session is not supported."
+                    )
+                }
+            )
+
+        return attrs
+
     @transaction.atomic
     def create(self, validated_data):
         session = Session.objects.create(**validated_data)
