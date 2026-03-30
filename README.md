@@ -16,7 +16,7 @@ These capabilities are implemented with emphasis on data consistency, concurrenc
 
 ## Documentation
 
-Detailed implementation-aligned requirements are available in [`cinepolis-natal-api-srs.md`](./software-requirements-specification.md.md).
+Detailed implementation-aligned requirements are available in [`software-requirements-specification.md.md`](./software-requirements-specification.md.md).
 
 ## Tech Stack
 
@@ -40,14 +40,15 @@ The table below maps implemented requirements to concrete endpoints/components.
 | User registration | Register with email, username, password | `POST /api/v1/auth/register/` (`users.views.UserRegistrationView`) |
 | JWT login | Login returns access + refresh tokens | `POST /api/v1/auth/login/` (`users.views.UserLoginView`) |
 | Current user profile | Returns authenticated user identity | `GET /api/v1/auth/me/` and `GET /api/v1/users/me/` |
-| Public catalog | List/create/retrieve/delete genres, movies, rooms, sessions (no update endpoint implemented) | `catalog.views.*` under `/api/v1/catalog/*` |
+| Public catalog | List/create/retrieve/update/delete genres, movies, rooms, sessions | `catalog.views.*` under `/api/v1/catalog/*` |
+| Reservation admin entities | Full CRUD for seat rows and seats; list/create/retrieve/delete for session seats and tickets | `reservations.views.*` under `/api/v1/reservation/*` |
 | Session seat map | Public seat status (`AVAILABLE`, `RESERVED`, `PURCHASED`) | `GET /api/v1/reservation/sessions/{session_id}/seats/` |
 | Temporary reservation | Authenticated seat lock with expiration metadata | `POST /api/v1/reservation/sessions/{session_id}/reservations/` |
 | Checkout | Transactional purchase and ticket creation | `POST /api/v1/reservation/checkout/` + `reservations.services.checkout_service` |
 | My tickets | Authenticated ticket list + `type=upcoming|past` filter | `GET /api/v1/users/me/tickets/` |
 | Standardized errors | Unified error envelope for 4xx/5xx | `cinepolis_natal_api.exception_handler.standardized_exception_handler` |
 | Rate limiting | Global + login + reservation throttles | `cinepolis_natal_api.throttling` + DRF settings |
-| Redis cache | Caching for movies/sessions list endpoints + invalidation | `catalog.views.MovieListCreateView` / `SessionListCreateView` |
+| Redis cache | Caching for movies/sessions list endpoints + invalidation on create/update/delete | `catalog.views.MovieListCreateView` / `SessionListCreateView` |
 | Async jobs | Expiration release + ticket email notification | `reservations.tasks` + Celery worker |
 | Health check | DB/Redis/Celery health status | `GET /health/` |
 | API docs | OpenAPI schema + Swagger UI | `/api/schema/`, `/api/docs/` |
@@ -186,50 +187,78 @@ This is the recommended and validated way to run the project locally, as it prov
 	docker compose exec web pytest -q
 	```
 
+### Run a specific test file
+
+- Docker:
+	```bash
+	docker compose exec web pytest tests/integration/test_catalog_api.py -q
+	docker compose exec web pytest tests/integration/test_reservations_admin_crud_api.py -q
+	```
+
 ### Integration tests
 
 Integration tests are under `tests/integration/` and validate end-to-end API behavior, including authentication, catalog, reservation/checkout concurrency behavior, throttling, error schema, and background task-related flows.
 
 ### CI validation
 
-The CI workflow executes:
+The CI workflow executes these validations inside the CI job environment:
 - `python manage.py check`
 - `python manage.py migrate --noinput`
 - `pytest -q`
 - Docker Compose config validation
 - Docker image build
 
+For local development, prefer only the Docker commands documented in this README.
+
 ## Manual Testing Guide
 
-This guide is executable with `curl`.
+This guide can be executed with Postman or `curl`.
 
 Base URL:
 ```bash
 export BASE_URL="http://localhost:8000"
 ```
 
+### Postman Environment
+
+Suggested Postman environment variables:
+
+- `BASE_URL`: `http://localhost:8000`
+- `ACCESS_TOKEN`: JWT access token returned by login
+- `SESSION_ID`: target session UUID
+- `SEAT_ID`: target seat UUID from the seat map
+- `TICKET_ID`: optional ticket UUID for direct ticket lookup
+
+For authenticated requests in Postman:
+
+- Authorization type: `Bearer Token`
+- Token value: `{{ACCESS_TOKEN}}`
+
 ### Preconditions
 
 - API is running.
 - At least one session exists with seats in `AVAILABLE` status.
-	- The API exposes endpoints for movies/sessions/rooms, but seat rows and seats are model-managed; in local environments you may create base room/seat data via admin or Django shell if needed.
+	- You can manage seat rows, seats, session seats, and tickets directly through `/api/v1/reservation/seat-rows/`, `/api/v1/reservation/seats/`, `/api/v1/reservation/session-seats/`, and `/api/v1/reservation/tickets/`.
+	- If you create a session through the API, session seats are created automatically.
+	- If you create a session directly through Django shell, you must also create the related `SessionSeat` records.
 
 Optional bootstrap via Django shell (minimal base data):
 
 ```bash
-	docker compose exec web pytest -q
+	docker compose exec web python manage.py shell
 ```
 
 ```python
 from django.utils import timezone
 from datetime import timedelta
 from catalog.models import Genre, Movie, Room, Session
-from reservations.models import SeatRow, Seat
+from reservations.models import SeatRow, Seat, SessionSeat
 
 genre = Genre.objects.create(name="Action")
 room = Room.objects.create(name="Room 1", capacity=20)
 row = SeatRow.objects.create(room=room, name="A")
-seat = Seat.objects.create(row=row, number=1)
+seat_1 = Seat.objects.create(row=row, number=1)
+seat_2 = Seat.objects.create(row=row, number=2)
 
 movie = Movie.objects.create(
 	title="Interstellar",
@@ -240,12 +269,19 @@ movie = Movie.objects.create(
 )
 movie.genres.set([genre])
 
-Session.objects.create(
+session = Session.objects.create(
 	movie=movie,
 	room=room,
 	start_time=timezone.now() + timedelta(hours=2),
 	end_time=timezone.now() + timedelta(hours=5),
 )
+
+SessionSeat.objects.create(session=session, seat=seat_1)
+SessionSeat.objects.create(session=session, seat=seat_2)
+
+print("SESSION_ID =", session.id)
+print("SEAT_1_ID =", seat_1.id)
+print("SEAT_2_ID =", seat_2.id)
 ```
 
 ### 1) Register user
@@ -270,10 +306,20 @@ LOGIN_RESPONSE=$(curl -s -X POST "$BASE_URL/api/v1/auth/login/" \
 	-d '{"email":"dev1@example.com","password":"StrongPass123!"}')
 
 echo "$LOGIN_RESPONSE"
-export ACCESS_TOKEN=$(echo "$LOGIN_RESPONSE" | python -c "import sys, json; print(json.load(sys.stdin)['access'])")
 ```
 
 Expected: `200 OK` with `access` and `refresh`.
+
+For Postman:
+
+- Copy the `access` value into the `ACCESS_TOKEN` environment variable.
+
+For `curl`:
+
+- Copy the `access` token from `LOGIN_RESPONSE` and export it manually:
+	```bash
+	export ACCESS_TOKEN="<jwt-access-token>"
+	```
 
 ### 3) List movies
 
@@ -324,7 +370,9 @@ curl -s -X POST "$BASE_URL/api/v1/reservation/checkout/" \
 	-d "{\"session_id\":\"$SESSION_ID\",\"seat_ids\":[\"$SEAT_ID\"]}"
 ```
 
-Expected: `200 OK` with `status: PURCHASED`, purchased seats, and generated ticket metadata.
+Expected: `200 OK` with `status: PURCHASED`, `session_id`, and purchased seats summary.
+
+The ticket records are created internally and can be verified via `GET /api/v1/users/me/tickets/`.
 
 ### 8) List user tickets
 
@@ -344,49 +392,91 @@ Expected: `200 OK` paginated ticket list. Optional filters:
 - Seat already reserved/purchased: `409` with `error.code = SEAT_ALREADY_RESERVED`
 - Rate limiting exceeded: `429` with `error.code = THROTTLED`
 
-## API Usage (Quick Curl Reference)
+## Postman Routes Reference
 
-### Register
+### Support routes
 
-```bash
-curl -X POST "$BASE_URL/api/v1/auth/register/" -H "Content-Type: application/json" -d '{"email":"dev2@example.com","username":"dev2","password":"StrongPass123!"}'
-```
+| Method | Route | Auth | Notes |
+| --- | --- | --- | --- |
+| `GET` | `{{BASE_URL}}/health/` | No | Health check for DB, Redis, and Celery |
+| `GET` | `{{BASE_URL}}/api/schema/` | No | OpenAPI schema |
+| `GET` | `{{BASE_URL}}/api/docs/` | No | Swagger UI |
 
-### Login
+### Auth and user routes
 
-```bash
-curl -X POST "$BASE_URL/api/v1/auth/login/" -H "Content-Type: application/json" -d '{"email":"dev2@example.com","password":"StrongPass123!"}'
-```
+| Method | Route | Auth | Body example |
+| --- | --- | --- | --- |
+| `POST` | `{{BASE_URL}}/api/v1/auth/register/` | No | `{"email":"dev1@example.com","username":"dev1","password":"StrongPass123!"}` |
+| `POST` | `{{BASE_URL}}/api/v1/auth/login/` | No | `{"email":"dev1@example.com","password":"StrongPass123!"}` |
+| `GET` | `{{BASE_URL}}/api/v1/auth/me/` | Bearer | none |
+| `GET` | `{{BASE_URL}}/api/v1/users/me/` | Bearer | none |
+| `GET` | `{{BASE_URL}}/api/v1/users/me/tickets/` | Bearer | none |
+| `GET` | `{{BASE_URL}}/api/v1/users/me/tickets/?type=upcoming` | Bearer | none |
+| `GET` | `{{BASE_URL}}/api/v1/users/me/tickets/?type=past` | Bearer | none |
 
-### List movies
+### Catalog routes
 
-```bash
-curl "$BASE_URL/api/v1/catalog/movies/"
-```
+| Method | Route | Auth | Body example |
+| --- | --- | --- | --- |
+| `GET` | `{{BASE_URL}}/api/v1/catalog/genres/` | No | none |
+| `POST` | `{{BASE_URL}}/api/v1/catalog/genres/` | No | `{"name":"Sci-Fi"}` |
+| `GET` | `{{BASE_URL}}/api/v1/catalog/genres/{genre_id}/` | No | none |
+| `PATCH` | `{{BASE_URL}}/api/v1/catalog/genres/{genre_id}/` | No | `{"name":"Science Fiction"}` |
+| `DELETE` | `{{BASE_URL}}/api/v1/catalog/genres/{genre_id}/` | No | none |
+| `GET` | `{{BASE_URL}}/api/v1/catalog/movies/` | No | none |
+| `POST` | `{{BASE_URL}}/api/v1/catalog/movies/` | No | `{"title":"Interstellar","genres":["{genre_id}"],"synopsis":"Space exploration.","duration_minutes":169,"release_date":"2014-11-07","poster_url":"https://example.com/interstellar.jpg"}` |
+| `GET` | `{{BASE_URL}}/api/v1/catalog/movies/{movie_id}/` | No | none |
+| `PATCH` | `{{BASE_URL}}/api/v1/catalog/movies/{movie_id}/` | No | `{"title":"Interstellar Remastered"}` |
+| `DELETE` | `{{BASE_URL}}/api/v1/catalog/movies/{movie_id}/` | No | none |
+| `GET` | `{{BASE_URL}}/api/v1/catalog/rooms/` | No | none |
+| `POST` | `{{BASE_URL}}/api/v1/catalog/rooms/` | No | `{"name":"Room 2","capacity":80}` |
+| `GET` | `{{BASE_URL}}/api/v1/catalog/rooms/{room_id}/` | No | none |
+| `PATCH` | `{{BASE_URL}}/api/v1/catalog/rooms/{room_id}/` | No | `{"name":"Room Prime","capacity":100}` |
+| `DELETE` | `{{BASE_URL}}/api/v1/catalog/rooms/{room_id}/` | No | none |
+| `GET` | `{{BASE_URL}}/api/v1/catalog/sessions/` | No | none |
+| `POST` | `{{BASE_URL}}/api/v1/catalog/sessions/` | No | `{"movie":"{movie_id}","room":"{room_id}","start_time":"2026-03-23T18:00:00Z","end_time":"2026-03-23T20:55:00Z"}` |
+| `GET` | `{{BASE_URL}}/api/v1/catalog/sessions/{session_id}/` | No | none |
+| `PATCH` | `{{BASE_URL}}/api/v1/catalog/sessions/{session_id}/` | No | `{"end_time":"2026-03-23T21:10:00Z"}` |
+| `DELETE` | `{{BASE_URL}}/api/v1/catalog/sessions/{session_id}/` | No | none |
 
-### List sessions
+Notes:
 
-```bash
-curl "$BASE_URL/api/v1/catalog/sessions/"
-```
+- Updating a `Genre` is useful when it is already linked to multiple movies.
+- Updating a `Session` is supported, but changing its `room` after creation is rejected to avoid inconsistency with existing `SessionSeat` records.
+- Creating a `Session` through the API creates its `SessionSeat` records automatically from the seats already registered for that room.
 
-### Reserve seats
+### Reservation routes
 
-```bash
-curl -X POST "$BASE_URL/api/v1/reservation/sessions/$SESSION_ID/reservations/" -H "Authorization: Bearer $ACCESS_TOKEN" -H "Content-Type: application/json" -d "{\"seat_ids\":[\"$SEAT_ID\"]}"
-```
+| Method | Route | Auth | Body example |
+| --- | --- | --- | --- |
+| `GET` | `{{BASE_URL}}/api/v1/reservation/seat-rows/` | No | none |
+| `POST` | `{{BASE_URL}}/api/v1/reservation/seat-rows/` | No | `{"room":"{room_id}","name":"A"}` |
+| `GET` | `{{BASE_URL}}/api/v1/reservation/seat-rows/{seat_row_id}/` | No | none |
+| `PATCH` | `{{BASE_URL}}/api/v1/reservation/seat-rows/{seat_row_id}/` | No | `{"name":"B"}` |
+| `DELETE` | `{{BASE_URL}}/api/v1/reservation/seat-rows/{seat_row_id}/` | No | none |
+| `GET` | `{{BASE_URL}}/api/v1/reservation/seats/` | No | none |
+| `POST` | `{{BASE_URL}}/api/v1/reservation/seats/` | No | `{"row":"{seat_row_id}","number":1}` |
+| `GET` | `{{BASE_URL}}/api/v1/reservation/seats/{seat_id}/` | No | none |
+| `PATCH` | `{{BASE_URL}}/api/v1/reservation/seats/{seat_id}/` | No | `{"number":2}` |
+| `DELETE` | `{{BASE_URL}}/api/v1/reservation/seats/{seat_id}/` | No | none |
+| `GET` | `{{BASE_URL}}/api/v1/reservation/session-seats/` | No | none |
+| `POST` | `{{BASE_URL}}/api/v1/reservation/session-seats/` | No | `{"session":"{session_id}","seat":"{seat_id}","status":"AVAILABLE","locked_by_user":null,"lock_expires_at":null}` |
+| `GET` | `{{BASE_URL}}/api/v1/reservation/session-seats/{session_seat_id}/` | No | none |
+| `DELETE` | `{{BASE_URL}}/api/v1/reservation/session-seats/{session_seat_id}/` | No | none |
+| `GET` | `{{BASE_URL}}/api/v1/reservation/tickets/` | No | none |
+| `POST` | `{{BASE_URL}}/api/v1/reservation/tickets/` | No | `{"user":"{user_id}","session_seat":"{session_seat_id}"}` |
+| `GET` | `{{BASE_URL}}/api/v1/reservation/tickets/{ticket_id}/` | No | none |
+| `DELETE` | `{{BASE_URL}}/api/v1/reservation/tickets/{ticket_id}/` | No | none |
+| `GET` | `{{BASE_URL}}/api/v1/reservation/sessions/{{SESSION_ID}}/seats/` | No | none |
+| `POST` | `{{BASE_URL}}/api/v1/reservation/sessions/{{SESSION_ID}}/reservations/` | Bearer | `{"seat_ids":["{{SEAT_ID}}"]}` |
+| `POST` | `{{BASE_URL}}/api/v1/reservation/checkout/` | Bearer | `{"session_id":"{{SESSION_ID}}","seat_ids":["{{SEAT_ID}}"]}` |
 
-### Checkout
+Notes:
 
-```bash
-curl -X POST "$BASE_URL/api/v1/reservation/checkout/" -H "Authorization: Bearer $ACCESS_TOKEN" -H "Content-Type: application/json" -d "{\"session_id\":\"$SESSION_ID\",\"seat_ids\":[\"$SEAT_ID\"]}"
-```
-
-### My tickets
-
-```bash
-curl "$BASE_URL/api/v1/users/me/tickets/" -H "Authorization: Bearer $ACCESS_TOKEN"
-```
+- `SeatRow` and `Seat` support full CRUD because they are structural resources.
+- `SessionSeat` and `Ticket` intentionally do not expose `PATCH` endpoints.
+- `SessionSeat` state transitions should happen through reservation and checkout flows, not arbitrary updates.
+- `Ticket` creation is allowed for admin/testing scenarios, but application purchase flow should use checkout.
 
 ## Error Handling
 
@@ -416,7 +506,7 @@ GitHub Actions workflow (`.github/workflows/main.yml`) includes two jobs:
 
 1. **Validate Django API**
 	 - provisions PostgreSQL + Redis services
-	 - installs dependencies with Poetry
+	 - installs dependencies in the CI environment
 	 - runs `manage.py check`, migrations, and full tests
 
 2. **Validate Docker build**
