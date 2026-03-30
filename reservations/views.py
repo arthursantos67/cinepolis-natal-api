@@ -2,7 +2,13 @@ from django.shortcuts import get_object_or_404
 from drf_spectacular.utils import OpenApiResponse, extend_schema, extend_schema_view
 from rest_framework import status
 from rest_framework.exceptions import NotFound, PermissionDenied, ValidationError
-from rest_framework.generics import GenericAPIView, ListAPIView
+from rest_framework.generics import (
+    GenericAPIView,
+    ListAPIView,
+    ListCreateAPIView,
+    RetrieveUpdateDestroyAPIView,
+    RetrieveDestroyAPIView,
+)
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 
@@ -15,11 +21,15 @@ from reservations.exceptions import (
     SeatUnavailableError,
     SessionNotFoundError,
 )
-from reservations.models import SessionSeat
+from reservations.models import Seat, SeatRow, SessionSeat, Ticket
 from reservations.serializers import (
     CheckoutRequestSerializer,
     CheckoutResponseSerializer,
+    SeatRowSerializer,
+    SeatSerializer,
+    SessionSeatSerializer,
     SessionSeatMapItemSerializer,
+    TicketSerializer,
     TemporaryReservationRequestSerializer,
     TemporaryReservationResponseSerializer,
 )
@@ -31,6 +41,78 @@ from reservations.services.checkout_service import (
     InvalidSeatSelectionError as CheckoutInvalidSeatSelectionError,
     ReservationOwnershipError,
 )
+
+
+@extend_schema(tags=["Reservations"], summary="List or create seat rows")
+class SeatRowListCreateView(ListCreateAPIView):
+    queryset = SeatRow.objects.select_related("room").all()
+    serializer_class = SeatRowSerializer
+    permission_classes = [AllowAny]
+
+
+@extend_schema(tags=["Reservations"], summary="Get, update or delete seat row")
+class SeatRowDetailView(RetrieveUpdateDestroyAPIView):
+    queryset = SeatRow.objects.select_related("room").all()
+    serializer_class = SeatRowSerializer
+    permission_classes = [AllowAny]
+
+
+@extend_schema(tags=["Reservations"], summary="List or create seats")
+class SeatListCreateView(ListCreateAPIView):
+    queryset = Seat.objects.select_related("row", "row__room").all()
+    serializer_class = SeatSerializer
+    permission_classes = [AllowAny]
+
+
+@extend_schema(tags=["Reservations"], summary="Get, update or delete seat")
+class SeatDetailView(RetrieveUpdateDestroyAPIView):
+    queryset = Seat.objects.select_related("row", "row__room").all()
+    serializer_class = SeatSerializer
+    permission_classes = [AllowAny]
+
+
+@extend_schema(tags=["Reservations"], summary="List or create session seats")
+class SessionSeatListCreateView(ListCreateAPIView):
+    queryset = SessionSeat.objects.select_related(
+        "session", "seat", "seat__row", "seat__row__room", "locked_by_user"
+    ).all()
+    serializer_class = SessionSeatSerializer
+    permission_classes = [AllowAny]
+
+
+@extend_schema(tags=["Reservations"], summary="Get or delete session seat")
+class SessionSeatDetailView(RetrieveDestroyAPIView):
+    queryset = SessionSeat.objects.select_related(
+        "session", "seat", "seat__row", "seat__row__room", "locked_by_user"
+    ).all()
+    serializer_class = SessionSeatSerializer
+    permission_classes = [AllowAny]
+
+
+@extend_schema(tags=["Reservations"], summary="List or create tickets")
+class TicketListCreateView(ListCreateAPIView):
+    queryset = Ticket.objects.select_related(
+        "user",
+        "session_seat",
+        "session_seat__session",
+        "session_seat__seat",
+        "session_seat__seat__row",
+    ).all()
+    serializer_class = TicketSerializer
+    permission_classes = [AllowAny]
+
+
+@extend_schema(tags=["Reservations"], summary="Get or delete ticket")
+class TicketDetailView(RetrieveDestroyAPIView):
+    queryset = Ticket.objects.select_related(
+        "user",
+        "session_seat",
+        "session_seat__session",
+        "session_seat__seat",
+        "session_seat__seat__row",
+    ).all()
+    serializer_class = TicketSerializer
+    permission_classes = [AllowAny]
 
 
 @extend_schema_view(
