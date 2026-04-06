@@ -80,7 +80,6 @@ class Session(models.Model):
     def clean(self):
         super().clean()
 
-        # 🔥 VALIDAÇÃO CRÍTICA (ANTES DO RANGE)
         if self.end_time <= self.start_time:
             raise ValidationError({
                 "end_time": "End time must be after start time."
