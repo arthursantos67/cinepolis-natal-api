@@ -16,7 +16,7 @@ These capabilities are implemented with emphasis on data consistency, concurrenc
 
 ## Documentation
 
-Detailed implementation-aligned requirements are available in [`software-requirements-specification.md.md`](./software-requirements-specification.md.md).
+Detailed full-stack requirements are available in [`product-requirements-document.md`](./product-requirements-document.md).
 
 ## Tech Stack
 
