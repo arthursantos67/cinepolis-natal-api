@@ -12,72 +12,48 @@ jobs:
   backend:
     name: Validate Backend
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: backend
-    services:
-      postgres:
-        image: postgres:17
-        env:
-          POSTGRES_DB: cinepolis_natal
-          POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: postgres
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd "pg_isready -U postgres -d cinepolis_natal"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-      redis:
-        image: redis:7
-        ports:
-          - 6379:6379
-        options: >-
-          --health-cmd "redis-cli ping"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-
-    env:
-      SECRET_KEY: ci-secret-key
-      DEBUG: "False"
-      ALLOWED_HOSTS: 127.0.0.1,localhost
-      POSTGRES_DB: cinepolis_natal
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-      POSTGRES_HOST: 127.0.0.1
-      POSTGRES_PORT: "5432"
-      REDIS_URL: redis://127.0.0.1:6379/1
-      CELERY_BROKER_URL: redis://127.0.0.1:6379/1
-      THROTTLE_ANON_RATE: 60/minute
-      THROTTLE_USER_RATE: 120/minute
-      THROTTLE_LOGIN_RATE: 5/minute
-      THROTTLE_RESERVATION_RATE: 10/minute
-
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set up Python 3.14
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.14"
+      - name: Create CI .env
+        run: |
+          cat << 'EOF' > .env
+          SECRET_KEY=ci-secret-key
+          DEBUG=False
+          ALLOWED_HOSTS=127.0.0.1,localhost,backend
+          POSTGRES_DB=cinepolis_natal
+          POSTGRES_USER=postgres
+          POSTGRES_PASSWORD=postgres
+          POSTGRES_HOST=db
+          POSTGRES_PORT=5432
+          REDIS_URL=redis://redis:6379/1
+          CELERY_BROKER_URL=redis://redis:6379/1
+          THROTTLE_ANON_RATE=60/minute
+          THROTTLE_USER_RATE=120/minute
+          THROTTLE_LOGIN_RATE=5/minute
+          THROTTLE_RESERVATION_RATE=10/minute
+          NEXT_PUBLIC_API_BASE_URL=http://localhost:8000
+          EOF
 
-      - name: Install Poetry
-        run: pip install poetry
+      - name: Start backend dependencies
+        run: docker compose up -d db redis
 
-      - name: Install dependencies with Poetry
-        run: poetry install --with dev --no-interaction --no-root
+      - name: Build backend image
+        run: docker compose build backend
 
       - name: Run Django system check
-        run: poetry run python manage.py check
+        run: docker compose run --rm backend python manage.py check
 
       - name: Run database migrations
-        run: poetry run python manage.py migrate --noinput
+        run: docker compose run --rm backend python manage.py migrate --noinput
 
       - name: Run test suite
-        run: poetry run pytest -q
+        run: docker compose run --rm backend pytest -q
+
+      - name: Stop backend dependencies
+        if: always()
+        run: docker compose down --volumes --remove-orphans
 
   frontend:
     name: Validate Frontend

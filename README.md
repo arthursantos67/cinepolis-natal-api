@@ -8,7 +8,7 @@ Detailed product requirements are in [`product-requirements-document.md`](./prod
 
 | Path | Ownership |
 | --- | --- |
-| [`backend/`](./backend/) | Django API, DRF apps, tests, Poetry dependencies, backend Dockerfile, Postman collection |
+| [`backend/`](./backend/) | Django API, DRF apps, tests, Python dependency files, backend Dockerfile, Postman collection |
 | [`frontend/`](./frontend/) | Next.js App Router scaffold, route placeholders, API client boundary, frontend Dockerfile |
 | [`docker-compose.yml`](./docker-compose.yml) | Full-stack local runtime wiring |
 | [`.github/workflows/`](./.github/workflows/) | Independent backend, frontend, and Docker validation |
@@ -65,6 +65,6 @@ The frontend reads the backend base URL from `NEXT_PUBLIC_API_BASE_URL`.
 
 GitHub Actions validates the two apps independently:
 
-- backend install, Django checks, migrations, and tests from `backend/`
+- backend Docker Compose checks, migrations, and tests
 - frontend install, lint, tests, and build from `frontend/`
 - Docker Compose config plus backend/frontend image builds

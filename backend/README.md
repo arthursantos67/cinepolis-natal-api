@@ -118,24 +118,23 @@ The table below maps implemented requirements to concrete endpoints/components.
 
 ## Setup Instructions
 
-The Django application lives in `backend/`. Run backend-only Poetry commands from this directory:
+The Django application lives in `backend/`, but the supported local development flow is Docker-based from the repository root. The backend image installs Python dependencies during the Docker build, so contributors should not need to run Poetry directly on the host machine.
 
 ```bash
-cd backend
-poetry install --with dev --no-root
-poetry run python manage.py check
-poetry run python manage.py migrate
-poetry run python manage.py runserver 0.0.0.0:8000
-```
-
-### Docker setup (recommended)
-
-From the repository root:
-
-```bash
+cp .env.example .env
 docker compose up --build
 ```
+
 This provisions the backend API, frontend dev server, PostgreSQL, Redis, and Celery worker. The backend remains available at `http://localhost:8000`.
+
+Common backend commands:
+
+```bash
+docker compose exec backend python manage.py check
+docker compose exec backend python manage.py migrate
+docker compose exec backend pytest -q
+docker compose exec celery celery -A cinepolis_natal_api inspect ping
+```
 
 ---
 
@@ -194,24 +193,18 @@ This provisions the backend API, frontend dev server, PostgreSQL, Redis, and Cel
 
 ### Full test suite
 
-- Docker:
-	```bash
-	docker compose exec backend pytest -q
-	```
+From the repository root, with the Docker stack running:
 
-- Poetry:
-	```bash
-	cd backend
-	poetry run pytest -q
-	```
+```bash
+docker compose exec backend pytest -q
+```
 
 ### Run a specific test file
 
-- Docker:
-	```bash
-	docker compose exec backend pytest tests/integration/test_catalog_api.py -q
-	docker compose exec backend pytest tests/integration/test_reservations_admin_crud_api.py -q
-	```
+```bash
+docker compose exec backend pytest tests/integration/test_catalog_api.py -q
+docker compose exec backend pytest tests/integration/test_reservations_admin_crud_api.py -q
+```
 
 ### Integration tests
 
@@ -220,13 +213,13 @@ Integration tests are under `tests/integration/` and validate end-to-end API beh
 ### CI validation
 
 The CI workflow executes these validations inside the CI job environment:
-- `cd backend && poetry run python manage.py check`
-- `cd backend && poetry run python manage.py migrate --noinput`
-- `cd backend && poetry run pytest -q`
+- `docker compose run --rm backend python manage.py check`
+- `docker compose run --rm backend python manage.py migrate --noinput`
+- `docker compose run --rm backend pytest -q`
 - Docker Compose config validation
 - backend and frontend Docker image builds
 
-For local development, prefer only the Docker commands documented in this README.
+For local development, use the Docker commands documented in this README.
 
 ## Manual Testing Guide
 
@@ -523,9 +516,9 @@ This project currently implements Continuous Integration (CI) only. The pipeline
 GitHub Actions workflow (`../.github/workflows/main.yml`) validates backend and frontend responsibilities independently.
 
 1. **Validate Backend**
-	 - provisions PostgreSQL + Redis services
-	 - installs backend dependencies in the CI environment from `backend/`
-	 - runs `manage.py check`, migrations, and full tests
+	 - provisions PostgreSQL + Redis through Docker Compose
+	 - builds the backend image from `backend/`
+	 - runs `manage.py check`, migrations, and full tests inside the backend container
 
 2. **Validate Frontend**
 	 - installs frontend dependencies from `frontend/`
