@@ -7,7 +7,7 @@ from django.utils import timezone
 from rest_framework import status
 from rest_framework.test import APIClient
 
-from catalog.models import Genre, Movie, Room, Session
+from catalog.models import Genre, Movie, MovieStatus, Room, Session
 
 
 @pytest.mark.django_db
@@ -58,6 +58,26 @@ class TestCatalogApi:
             end_time=timezone.now() + timedelta(hours=3, minutes=55),
         )
 
+    def create_movie(
+        self,
+        *,
+        title,
+        genre,
+        status=MovieStatus.EM_CARTAZ,
+        is_featured=False,
+    ):
+        movie = Movie.objects.create(
+            title=title,
+            synopsis=f"{title} synopsis.",
+            duration_minutes=120,
+            release_date="2026-05-13",
+            poster_url=f"https://example.com/{title.lower().replace(' ', '-')}.jpg",
+            status=status,
+            is_featured=is_featured,
+        )
+        movie.genres.set([genre])
+        return movie
+
     def test_list_genres_returns_200(self, api_client, genre):
         response = api_client.get("/api/v1/catalog/genres/")
 
@@ -84,8 +104,17 @@ class TestCatalogApi:
         assert response.data["count"] == 1
         assert len(response.data["results"]) == 1
         assert response.data["results"][0]["title"] == movie.title
+        assert response.data["results"][0]["status"] == MovieStatus.EM_CARTAZ
+        assert response.data["results"][0]["is_featured"] is False
         assert len(response.data["results"][0]["genres"]) == 2
         assert "name" in response.data["results"][0]["genres"][0]
+
+    def test_retrieve_movie_returns_status_and_featured_fields(self, api_client, movie):
+        response = api_client.get(f"/api/v1/catalog/movies/{movie.id}/")
+
+        assert response.status_code == status.HTTP_200_OK
+        assert response.data["status"] == MovieStatus.EM_CARTAZ
+        assert response.data["is_featured"] is False
 
     def test_create_movie_returns_201(self, api_client, genre, second_genre):
         response = api_client.post(
@@ -102,7 +131,132 @@ class TestCatalogApi:
         )
 
         assert response.status_code == status.HTTP_201_CREATED
+        assert response.data["status"] == MovieStatus.EM_CARTAZ
+        assert response.data["is_featured"] is False
         assert Movie.objects.filter(title="Interstellar").exists()
+
+    def test_create_movie_accepts_status_and_featured_fields(
+        self,
+        api_client,
+        genre,
+        second_genre,
+    ):
+        response = api_client.post(
+            "/api/v1/catalog/movies/",
+            {
+                "title": "Dune Part Two",
+                "genres": [str(genre.id), str(second_genre.id)],
+                "synopsis": "Desert power struggle.",
+                "duration_minutes": 166,
+                "release_date": "2024-03-01",
+                "poster_url": "https://example.com/dune-two.jpg",
+                "status": MovieStatus.PRE_VENDA,
+                "is_featured": True,
+            },
+            format="json",
+        )
+
+        assert response.status_code == status.HTTP_201_CREATED
+        assert response.data["status"] == MovieStatus.PRE_VENDA
+        assert response.data["is_featured"] is True
+        movie = Movie.objects.get(title="Dune Part Two")
+        assert movie.status == MovieStatus.PRE_VENDA
+        assert movie.is_featured is True
+
+    def test_list_movies_can_filter_by_em_cartaz_status(self, api_client, genre):
+        current_movie = self.create_movie(
+            title="Current Movie",
+            genre=genre,
+            status=MovieStatus.EM_CARTAZ,
+        )
+        self.create_movie(
+            title="Presale Movie",
+            genre=genre,
+            status=MovieStatus.PRE_VENDA,
+        )
+
+        response = api_client.get(
+            f"/api/v1/catalog/movies/?status={MovieStatus.EM_CARTAZ}"
+        )
+
+        assert response.status_code == status.HTTP_200_OK
+        assert response.data["count"] == 1
+        assert response.data["results"][0]["id"] == str(current_movie.id)
+        assert response.data["results"][0]["status"] == MovieStatus.EM_CARTAZ
+
+    def test_list_movies_can_filter_by_pre_venda_status(self, api_client, genre):
+        self.create_movie(
+            title="Current Movie",
+            genre=genre,
+            status=MovieStatus.EM_CARTAZ,
+        )
+        presale_movie = self.create_movie(
+            title="Presale Movie",
+            genre=genre,
+            status=MovieStatus.PRE_VENDA,
+        )
+
+        response = api_client.get(
+            f"/api/v1/catalog/movies/?status={MovieStatus.PRE_VENDA}"
+        )
+
+        assert response.status_code == status.HTTP_200_OK
+        assert response.data["count"] == 1
+        assert response.data["results"][0]["id"] == str(presale_movie.id)
+        assert response.data["results"][0]["status"] == MovieStatus.PRE_VENDA
+
+    def test_list_movies_can_filter_by_is_featured(self, api_client, genre):
+        featured_movie = self.create_movie(
+            title="Featured Movie",
+            genre=genre,
+            is_featured=True,
+        )
+        self.create_movie(
+            title="Regular Movie",
+            genre=genre,
+            is_featured=False,
+        )
+
+        response = api_client.get("/api/v1/catalog/movies/?is_featured=true")
+
+        assert response.status_code == status.HTTP_200_OK
+        assert response.data["count"] == 1
+        assert response.data["results"][0]["id"] == str(featured_movie.id)
+        assert response.data["results"][0]["is_featured"] is True
+
+    def test_list_movies_rejects_invalid_status_filter(self, api_client, genre):
+        self.create_movie(title="Current Movie", genre=genre)
+
+        response = api_client.get("/api/v1/catalog/movies/?status=foo")
+
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert response.data["error"]["code"] == "VALIDATION_FAILED"
+        assert "status" in response.data["error"]["details"]
+
+    def test_list_movies_rejects_invalid_is_featured_filter(
+        self, api_client, genre
+    ):
+        self.create_movie(title="Featured Movie", genre=genre, is_featured=True)
+
+        response = api_client.get("/api/v1/catalog/movies/?is_featured=yes")
+
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert response.data["error"]["code"] == "VALIDATION_FAILED"
+        assert "is_featured" in response.data["error"]["details"]
+
+    def test_invalid_movie_filter_should_not_return_cached_response(
+        self, api_client
+    ):
+        cache.set(
+            "catalog:movies:/api/v1/catalog/movies/?is_featured=yes",
+            {"count": 0, "results": []},
+        )
+
+        response = api_client.get("/api/v1/catalog/movies/?is_featured=yes")
+
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert response.data["error"]["code"] == "VALIDATION_FAILED"
+        assert "is_featured" in response.data["error"]["details"]
 
     def test_list_rooms_returns_200(self, api_client, room):
         response = api_client.get("/api/v1/catalog/rooms/")
@@ -137,6 +291,8 @@ class TestCatalogApi:
         assert response.data["count"] == 1
         assert len(response.data["results"]) == 1
         assert response.data["results"][0]["movie"]["title"] == session.movie.title
+        assert response.data["results"][0]["movie"]["status"] == MovieStatus.EM_CARTAZ
+        assert response.data["results"][0]["movie"]["is_featured"] is False
         assert response.data["results"][0]["room"]["name"] == session.room.name
 
     def test_create_session_returns_201(self, api_client, movie, room):
@@ -177,13 +333,21 @@ class TestCatalogApi:
     def test_update_movie_returns_200(self, api_client, movie):
         response = api_client.patch(
             f"/api/v1/catalog/movies/{movie.id}/",
-            {"title": "The Godfather Remastered"},
+            {
+                "title": "The Godfather Remastered",
+                "status": MovieStatus.PRE_VENDA,
+                "is_featured": True,
+            },
             format="json",
         )
 
         assert response.status_code == status.HTTP_200_OK
+        assert response.data["status"] == MovieStatus.PRE_VENDA
+        assert response.data["is_featured"] is True
         movie.refresh_from_db()
         assert movie.title == "The Godfather Remastered"
+        assert movie.status == MovieStatus.PRE_VENDA
+        assert movie.is_featured is True
 
     def test_update_room_returns_200(self, api_client, room):
         response = api_client.patch(
@@ -243,7 +407,32 @@ class TestCatalogApi:
         assert second_response.status_code == status.HTTP_200_OK
         assert first_response.data == second_response.data
         assert len(second_request_queries) < len(first_request_queries)
-        
+
+    def test_movie_list_cache_should_remain_query_aware(self, api_client, genre):
+        cache.clear()
+        current_movie = self.create_movie(
+            title="Current Movie",
+            genre=genre,
+            status=MovieStatus.EM_CARTAZ,
+        )
+        presale_movie = self.create_movie(
+            title="Presale Movie",
+            genre=genre,
+            status=MovieStatus.PRE_VENDA,
+        )
+
+        current_response = api_client.get(
+            f"/api/v1/catalog/movies/?status={MovieStatus.EM_CARTAZ}"
+        )
+        presale_response = api_client.get(
+            f"/api/v1/catalog/movies/?status={MovieStatus.PRE_VENDA}"
+        )
+
+        assert current_response.status_code == status.HTTP_200_OK
+        assert presale_response.status_code == status.HTTP_200_OK
+        assert current_response.data["results"][0]["id"] == str(current_movie.id)
+        assert presale_response.data["results"][0]["id"] == str(presale_movie.id)
+
     def test_list_sessions_should_use_cache_on_second_request(self, api_client, session):
         cache.clear()
 
@@ -403,6 +592,34 @@ class TestCatalogApi:
             second_session_response.data["results"][0]["movie"]["title"]
             == "The Godfather Updated"
         )
+
+    def test_movie_update_should_invalidate_filtered_movie_list_cache(
+        self,
+        api_client,
+        movie,
+    ):
+        cache.clear()
+
+        first_response = api_client.get(
+            f"/api/v1/catalog/movies/?status={MovieStatus.PRE_VENDA}"
+        )
+        assert first_response.status_code == status.HTTP_200_OK
+        assert first_response.data["count"] == 0
+
+        update_response = api_client.patch(
+            f"/api/v1/catalog/movies/{movie.id}/",
+            {"status": MovieStatus.PRE_VENDA},
+            format="json",
+        )
+        assert update_response.status_code == status.HTTP_200_OK
+
+        second_response = api_client.get(
+            f"/api/v1/catalog/movies/?status={MovieStatus.PRE_VENDA}"
+        )
+
+        assert second_response.status_code == status.HTTP_200_OK
+        assert second_response.data["count"] == 1
+        assert second_response.data["results"][0]["id"] == str(movie.id)
 
     def test_session_list_cache_should_be_invalidated_after_session_deletion(
         self,
