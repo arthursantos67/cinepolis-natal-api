@@ -1,11 +1,12 @@
 from django.core.cache import cache
 from django_redis import get_redis_connection
 from drf_spectacular.utils import extend_schema
+from rest_framework.exceptions import ValidationError
 from rest_framework.response import Response
 from rest_framework.generics import ListCreateAPIView, RetrieveUpdateDestroyAPIView
 from rest_framework.permissions import AllowAny
 
-from catalog.models import Genre, Movie, Room, Session
+from catalog.models import Genre, Movie, MovieStatus, Room, Session
 from catalog.serializers import (
     GenreSerializer,
     MovieReadSerializer,
@@ -60,21 +61,55 @@ class MovieListCreateView(ListCreateAPIView):
     queryset = Movie.objects.prefetch_related("genres").all()
     permission_classes = [AllowAny]
     CACHE_TTL_SECONDS = 300
+    IS_FEATURED_FILTER_VALUES = {
+        "true": True,
+        "1": True,
+        "false": False,
+        "0": False,
+    }
 
-    def get_queryset(self):
-        queryset = super().get_queryset()
+    def _get_validated_filters(self):
+        if hasattr(self, "_validated_filters"):
+            return self._validated_filters
+
+        filters = {}
         status = self.request.query_params.get("status")
         is_featured = self.request.query_params.get("is_featured")
 
-        if status:
-            queryset = queryset.filter(status=status)
+        if status is not None:
+            if status not in MovieStatus.values:
+                allowed_statuses = ", ".join(MovieStatus.values)
+                raise ValidationError({
+                    "status": [
+                        f"Invalid status filter. Expected one of: {allowed_statuses}."
+                    ]
+                })
+            filters["status"] = status
 
         if is_featured is not None:
             normalized_is_featured = is_featured.lower()
-            if normalized_is_featured in {"true", "1"}:
-                queryset = queryset.filter(is_featured=True)
-            elif normalized_is_featured in {"false", "0"}:
-                queryset = queryset.filter(is_featured=False)
+            if normalized_is_featured not in self.IS_FEATURED_FILTER_VALUES:
+                raise ValidationError({
+                    "is_featured": [
+                        "Invalid is_featured filter. Expected one of: true, false, 1, 0."
+                    ]
+                })
+            filters["is_featured"] = self.IS_FEATURED_FILTER_VALUES[
+                normalized_is_featured
+            ]
+
+        self._validated_filters = filters
+        return filters
+
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        filters = self._get_validated_filters()
+
+        if "status" in filters:
+            queryset = queryset.filter(status=filters["status"])
+
+        if "is_featured" in filters:
+            queryset = queryset.filter(is_featured=filters["is_featured"])
 
         return queryset
 
@@ -84,6 +119,7 @@ class MovieListCreateView(ListCreateAPIView):
         return MovieWriteSerializer
 
     def list(self, request, *args, **kwargs):
+        self._get_validated_filters()
         cache_key = f"catalog:movies:{request.get_full_path()}"
         cached_response = cache.get(cache_key)
 

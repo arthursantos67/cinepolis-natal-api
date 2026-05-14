@@ -224,6 +224,40 @@ class TestCatalogApi:
         assert response.data["results"][0]["id"] == str(featured_movie.id)
         assert response.data["results"][0]["is_featured"] is True
 
+    def test_list_movies_rejects_invalid_status_filter(self, api_client, genre):
+        self.create_movie(title="Current Movie", genre=genre)
+
+        response = api_client.get("/api/v1/catalog/movies/?status=foo")
+
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert response.data["error"]["code"] == "VALIDATION_FAILED"
+        assert "status" in response.data["error"]["details"]
+
+    def test_list_movies_rejects_invalid_is_featured_filter(
+        self, api_client, genre
+    ):
+        self.create_movie(title="Featured Movie", genre=genre, is_featured=True)
+
+        response = api_client.get("/api/v1/catalog/movies/?is_featured=yes")
+
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert response.data["error"]["code"] == "VALIDATION_FAILED"
+        assert "is_featured" in response.data["error"]["details"]
+
+    def test_invalid_movie_filter_should_not_return_cached_response(
+        self, api_client
+    ):
+        cache.set(
+            "catalog:movies:/api/v1/catalog/movies/?is_featured=yes",
+            {"count": 0, "results": []},
+        )
+
+        response = api_client.get("/api/v1/catalog/movies/?is_featured=yes")
+
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert response.data["error"]["code"] == "VALIDATION_FAILED"
+        assert "is_featured" in response.data["error"]["details"]
+
     def test_list_rooms_returns_200(self, api_client, room):
         response = api_client.get("/api/v1/catalog/rooms/")
 
