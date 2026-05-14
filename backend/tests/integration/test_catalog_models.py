@@ -5,7 +5,7 @@ from django.core.exceptions import ValidationError
 from django.db import IntegrityError
 from django.utils import timezone
 
-from catalog.models import Genre, Movie, Room, Session
+from catalog.models import Genre, Movie, MovieStatus, Room, Session
 
 
 @pytest.mark.django_db
@@ -39,6 +39,21 @@ class TestCatalogModels:
 
         assert movie.id is not None
         assert movie.genres.count() == 2
+        assert movie.status == MovieStatus.EM_CARTAZ
+        assert movie.is_featured is False
+
+    def test_movie_status_must_use_allowed_choices(self):
+        movie = Movie(
+            title="Interstellar",
+            synopsis="Space exploration",
+            duration_minutes=169,
+            release_date="2014-11-07",
+            poster_url="https://example.com/poster.jpg",
+            status="fora_de_catalogo",
+        )
+
+        with pytest.raises(ValidationError):
+            movie.full_clean()
 
     def test_movie_unique_title_and_release_date(self):
         Movie.objects.create(

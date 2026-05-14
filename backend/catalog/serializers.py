@@ -48,6 +48,8 @@ class MovieWriteSerializer(serializers.ModelSerializer):
             "duration_minutes",
             "release_date",
             "poster_url",
+            "status",
+            "is_featured",
             "created_at",
             "updated_at",
         ]
@@ -67,6 +69,8 @@ class MovieReadSerializer(serializers.ModelSerializer):
             "duration_minutes",
             "release_date",
             "poster_url",
+            "status",
+            "is_featured",
             "created_at",
             "updated_at",
         ]
@@ -84,6 +88,8 @@ class MovieSummarySerializer(serializers.ModelSerializer):
             "duration_minutes",
             "release_date",
             "poster_url",
+            "status",
+            "is_featured",
         ]
 
 
