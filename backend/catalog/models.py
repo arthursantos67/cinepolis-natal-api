@@ -7,6 +7,11 @@ from django.db import models
 from django.db.models import F, Func
 
 
+class MovieStatus(models.TextChoices):
+    EM_CARTAZ = "em_cartaz", "Em cartaz"
+    PRE_VENDA = "pre_venda", "Pre-venda"
+
+
 class Movie(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     title = models.CharField(max_length=255)
@@ -18,6 +23,12 @@ class Movie(models.Model):
     duration_minutes = models.PositiveIntegerField()
     release_date = models.DateField()
     poster_url = models.URLField(max_length=500)
+    status = models.CharField(
+        max_length=20,
+        choices=MovieStatus.choices,
+        default=MovieStatus.EM_CARTAZ,
+    )
+    is_featured = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

@@ -61,6 +61,23 @@ class MovieListCreateView(ListCreateAPIView):
     permission_classes = [AllowAny]
     CACHE_TTL_SECONDS = 300
 
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        status = self.request.query_params.get("status")
+        is_featured = self.request.query_params.get("is_featured")
+
+        if status:
+            queryset = queryset.filter(status=status)
+
+        if is_featured is not None:
+            normalized_is_featured = is_featured.lower()
+            if normalized_is_featured in {"true", "1"}:
+                queryset = queryset.filter(is_featured=True)
+            elif normalized_is_featured in {"false", "0"}:
+                queryset = queryset.filter(is_featured=False)
+
+        return queryset
+
     def get_serializer_class(self):
         if self.request.method == "GET":
             return MovieReadSerializer
