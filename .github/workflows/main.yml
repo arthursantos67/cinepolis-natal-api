@@ -9,9 +9,12 @@ on:
       - main
 
 jobs:
-  validate:
-    name: Validate Django API
+  backend:
+    name: Validate Backend
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
     services:
       postgres:
         image: postgres:17
@@ -76,8 +79,35 @@ jobs:
       - name: Run test suite
         run: poetry run pytest -q
 
+  frontend:
+    name: Validate Frontend
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      - name: Run frontend lint
+        run: npm run lint
+
+      - name: Run frontend tests
+        run: npm run test
+
+      - name: Build frontend
+        run: npm run build
+
   docker-build:
-    name: Validate Docker build
+    name: Validate Docker Builds
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -95,10 +125,14 @@ jobs:
           POSTGRES_PORT=5432
           REDIS_URL=redis://redis:6379/1
           CELERY_BROKER_URL=redis://redis:6379/1
+          NEXT_PUBLIC_API_BASE_URL=http://localhost:8000
           EOF
 
       - name: Validate Docker Compose configuration
         run: docker compose -f docker-compose.yml config
 
-      - name: Build application image from Dockerfile
-        run: docker build -t cinepolis-natal-api:ci .
+      - name: Build backend image
+        run: docker build -t cinepolis-natal-backend:ci backend
+
+      - name: Build frontend image
+        run: docker build -t cinepolis-natal-frontend:ci frontend
