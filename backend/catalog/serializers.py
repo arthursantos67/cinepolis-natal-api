@@ -102,6 +102,7 @@ class SessionWriteSerializer(serializers.ModelSerializer):
             "room",
             "start_time",
             "end_time",
+            "base_price",
             "created_at",
             "updated_at",
         ]
@@ -116,11 +117,7 @@ class SessionWriteSerializer(serializers.ModelSerializer):
             and attrs["room"] != self.instance.room
         ):
             raise serializers.ValidationError(
-                {
-                    "room": (
-                        "Updating the room of an existing session is not supported."
-                    )
-                }
+                {"room": ("Updating the room of an existing session is not supported.")}
             )
 
         return attrs
@@ -131,10 +128,7 @@ class SessionWriteSerializer(serializers.ModelSerializer):
 
         seats = Seat.objects.select_related("row").filter(row__room=session.room)
 
-        session_seats = [
-            SessionSeat(session=session, seat=seat)
-            for seat in seats
-        ]
+        session_seats = [SessionSeat(session=session, seat=seat) for seat in seats]
 
         SessionSeat.objects.bulk_create(session_seats)
 
@@ -153,6 +147,7 @@ class SessionReadSerializer(serializers.ModelSerializer):
             "room",
             "start_time",
             "end_time",
+            "base_price",
             "created_at",
             "updated_at",
         ]

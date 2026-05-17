@@ -61,6 +61,7 @@ def test_creating_session_auto_generates_session_seats():
             "room": str(room.id),
             "start_time": "2026-03-22T18:00:00Z",
             "end_time": "2026-03-22T20:00:00Z",
+            "base_price": "30.00",
         },
         format="json",
     )

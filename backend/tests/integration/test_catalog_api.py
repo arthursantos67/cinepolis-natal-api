@@ -1,5 +1,6 @@
 import pytest
-from datetime import timedelta
+from decimal import Decimal
+from datetime import datetime, timedelta
 from django.core.cache import cache
 from django.db import connection
 from django.test.utils import CaptureQueriesContext
@@ -56,6 +57,7 @@ class TestCatalogApi:
             room=room,
             start_time=timezone.now() + timedelta(hours=1),
             end_time=timezone.now() + timedelta(hours=3, minutes=55),
+            base_price="30.00",
         )
 
     def create_movie(
@@ -233,9 +235,7 @@ class TestCatalogApi:
         assert response.data["error"]["code"] == "VALIDATION_FAILED"
         assert "status" in response.data["error"]["details"]
 
-    def test_list_movies_rejects_invalid_is_featured_filter(
-        self, api_client, genre
-    ):
+    def test_list_movies_rejects_invalid_is_featured_filter(self, api_client, genre):
         self.create_movie(title="Featured Movie", genre=genre, is_featured=True)
 
         response = api_client.get("/api/v1/catalog/movies/?is_featured=yes")
@@ -244,9 +244,7 @@ class TestCatalogApi:
         assert response.data["error"]["code"] == "VALIDATION_FAILED"
         assert "is_featured" in response.data["error"]["details"]
 
-    def test_invalid_movie_filter_should_not_return_cached_response(
-        self, api_client
-    ):
+    def test_invalid_movie_filter_should_not_return_cached_response(self, api_client):
         cache.set(
             "catalog:movies:/api/v1/catalog/movies/?is_featured=yes",
             {"count": 0, "results": []},
@@ -294,8 +292,39 @@ class TestCatalogApi:
         assert response.data["results"][0]["movie"]["status"] == MovieStatus.EM_CARTAZ
         assert response.data["results"][0]["movie"]["is_featured"] is False
         assert response.data["results"][0]["room"]["name"] == session.room.name
+        assert response.data["results"][0]["base_price"] == "30.00"
+
+    def test_retrieve_session_returns_base_price_and_nested_data(
+        self,
+        api_client,
+        session,
+    ):
+        response = api_client.get(f"/api/v1/catalog/sessions/{session.id}/")
+
+        assert response.status_code == status.HTTP_200_OK
+        assert response.data["movie"]["title"] == session.movie.title
+        assert response.data["room"]["name"] == session.room.name
+        assert response.data["base_price"] == "30.00"
 
     def test_create_session_returns_201(self, api_client, movie, room):
+        response = api_client.post(
+            "/api/v1/catalog/sessions/",
+            {
+                "movie": str(movie.id),
+                "room": str(room.id),
+                "start_time": "2026-03-23T18:00:00Z",
+                "end_time": "2026-03-23T20:55:00Z",
+                "base_price": "42.50",
+            },
+            format="json",
+        )
+
+        assert response.status_code == status.HTTP_201_CREATED
+        assert response.data["base_price"] == "42.50"
+        assert Session.objects.count() == 1
+        assert Session.objects.get().base_price == Decimal("42.50")
+
+    def test_create_session_requires_base_price(self, api_client, movie, room):
         response = api_client.post(
             "/api/v1/catalog/sessions/",
             {
@@ -307,8 +336,99 @@ class TestCatalogApi:
             format="json",
         )
 
-        assert response.status_code == status.HTTP_201_CREATED
-        assert Session.objects.count() == 1
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert response.data["error"]["code"] == "VALIDATION_FAILED"
+        assert "base_price" in response.data["error"]["details"]
+
+    @pytest.mark.parametrize("base_price", ["0.00", "-1.00"])
+    def test_create_session_rejects_non_positive_base_price(
+        self,
+        api_client,
+        movie,
+        room,
+        base_price,
+    ):
+        response = api_client.post(
+            "/api/v1/catalog/sessions/",
+            {
+                "movie": str(movie.id),
+                "room": str(room.id),
+                "start_time": "2026-03-23T18:00:00Z",
+                "end_time": "2026-03-23T20:55:00Z",
+                "base_price": base_price,
+            },
+            format="json",
+        )
+
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert response.data["error"]["code"] == "VALIDATION_FAILED"
+        assert "base_price" in response.data["error"]["details"]
+
+    def test_update_session_accepts_base_price(self, api_client, session):
+        response = api_client.patch(
+            f"/api/v1/catalog/sessions/{session.id}/",
+            {"base_price": "36.75"},
+            format="json",
+        )
+
+        assert response.status_code == status.HTTP_200_OK
+        assert response.data["base_price"] == "36.75"
+        session.refresh_from_db()
+        assert session.base_price == Decimal("36.75")
+
+    def test_list_sessions_can_filter_by_movie(self, api_client, genre, room, session):
+        other_movie = self.create_movie(title="Other Movie", genre=genre)
+        other_session = Session.objects.create(
+            movie=other_movie,
+            room=room,
+            start_time=session.end_time + timedelta(hours=1),
+            end_time=session.end_time + timedelta(hours=3),
+            base_price="31.00",
+        )
+
+        response = api_client.get(f"/api/v1/catalog/sessions/?movie={session.movie_id}")
+
+        assert response.status_code == status.HTTP_200_OK
+        assert response.data["count"] == 1
+        assert response.data["results"][0]["id"] == str(session.id)
+        assert response.data["results"][0]["id"] != str(other_session.id)
+
+    def test_list_sessions_can_filter_by_start_date(self, api_client, movie, room):
+        first_session = Session.objects.create(
+            movie=movie,
+            room=room,
+            start_time=timezone.make_aware(datetime(2026, 3, 23, 18, 0)),
+            end_time=timezone.make_aware(datetime(2026, 3, 23, 20, 0)),
+            base_price="30.00",
+        )
+        Session.objects.create(
+            movie=movie,
+            room=room,
+            start_time=timezone.make_aware(datetime(2026, 3, 24, 18, 0)),
+            end_time=timezone.make_aware(datetime(2026, 3, 24, 20, 0)),
+            base_price="35.00",
+        )
+
+        response = api_client.get("/api/v1/catalog/sessions/?date=2026-03-23")
+
+        assert response.status_code == status.HTTP_200_OK
+        assert response.data["count"] == 1
+        assert response.data["results"][0]["id"] == str(first_session.id)
+
+    def test_invalid_session_filter_should_not_return_cached_response(
+        self,
+        api_client,
+    ):
+        cache.set(
+            "catalog:sessions:/api/v1/catalog/sessions/?date=not-a-date",
+            {"count": 0, "results": []},
+        )
+
+        response = api_client.get("/api/v1/catalog/sessions/?date=not-a-date")
+
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert response.data["error"]["code"] == "VALIDATION_FAILED"
+        assert "date" in response.data["error"]["details"]
 
     def test_delete_genre_returns_204(self, api_client, genre):
         response = api_client.delete(f"/api/v1/catalog/genres/{genre.id}/")
@@ -364,9 +484,13 @@ class TestCatalogApi:
         assert room.capacity == 90
 
     def test_update_session_returns_200(self, api_client, session):
-        new_end_time = (session.end_time + timedelta(minutes=30)).isoformat().replace(
-            "+00:00",
-            "Z",
+        new_end_time = (
+            (session.end_time + timedelta(minutes=30))
+            .isoformat()
+            .replace(
+                "+00:00",
+                "Z",
+            )
         )
 
         response = api_client.patch(
@@ -393,7 +517,7 @@ class TestCatalogApi:
         assert response.status_code == status.HTTP_400_BAD_REQUEST
         assert response.data["error"]["code"] == "VALIDATION_FAILED"
         assert "room" in response.data["error"]["details"]
-        
+
     def test_list_movies_should_use_cache_on_second_request(self, api_client, movie):
         cache.clear()
 
@@ -433,7 +557,9 @@ class TestCatalogApi:
         assert current_response.data["results"][0]["id"] == str(current_movie.id)
         assert presale_response.data["results"][0]["id"] == str(presale_movie.id)
 
-    def test_list_sessions_should_use_cache_on_second_request(self, api_client, session):
+    def test_list_sessions_should_use_cache_on_second_request(
+        self, api_client, session
+    ):
         cache.clear()
 
         with CaptureQueriesContext(connection) as first_request_queries:
@@ -446,7 +572,7 @@ class TestCatalogApi:
         assert second_response.status_code == status.HTTP_200_OK
         assert first_response.data == second_response.data
         assert len(second_request_queries) < len(first_request_queries)
-        
+
     def test_movie_list_cache_should_be_invalidated_after_movie_creation(
         self,
         api_client,
@@ -476,7 +602,7 @@ class TestCatalogApi:
         second_response = api_client.get("/api/v1/catalog/movies/")
         assert second_response.status_code == status.HTTP_200_OK
         assert second_response.data["count"] == initial_count + 1
-        
+
     def test_session_list_cache_should_be_invalidated_after_session_creation(
         self,
         api_client,
@@ -496,6 +622,7 @@ class TestCatalogApi:
                 "room": str(room.id),
                 "start_time": "2026-03-23T18:00:00Z",
                 "end_time": "2026-03-23T20:55:00Z",
+                "base_price": "30.00",
             },
             format="json",
         )
@@ -504,7 +631,7 @@ class TestCatalogApi:
         second_response = api_client.get("/api/v1/catalog/sessions/")
         assert second_response.status_code == status.HTTP_200_OK
         assert second_response.data["count"] == initial_count + 1
-        
+
     def test_movie_list_cache_should_be_invalidated_after_movie_deletion(
         self,
         api_client,
@@ -551,8 +678,7 @@ class TestCatalogApi:
         assert second_movie_response.status_code == status.HTTP_200_OK
         assert second_session_response.status_code == status.HTTP_200_OK
         movie_genre_names = [
-            item["name"]
-            for item in second_movie_response.data["results"][0]["genres"]
+            item["name"] for item in second_movie_response.data["results"][0]["genres"]
         ]
         session_genre_names = [
             item["name"]
@@ -587,7 +713,9 @@ class TestCatalogApi:
 
         assert second_movie_response.status_code == status.HTTP_200_OK
         assert second_session_response.status_code == status.HTTP_200_OK
-        assert second_movie_response.data["results"][0]["title"] == "The Godfather Updated"
+        assert (
+            second_movie_response.data["results"][0]["title"] == "The Godfather Updated"
+        )
         assert (
             second_session_response.data["results"][0]["movie"]["title"]
             == "The Godfather Updated"
@@ -632,9 +760,7 @@ class TestCatalogApi:
         assert first_response.status_code == status.HTTP_200_OK
         initial_count = first_response.data["count"]
 
-        delete_response = api_client.delete(
-            f"/api/v1/catalog/sessions/{session.id}/"
-        )
+        delete_response = api_client.delete(f"/api/v1/catalog/sessions/{session.id}/")
         assert delete_response.status_code == status.HTTP_204_NO_CONTENT
 
         second_response = api_client.get("/api/v1/catalog/sessions/")
@@ -674,9 +800,13 @@ class TestCatalogApi:
         first_response = api_client.get("/api/v1/catalog/sessions/")
         assert first_response.status_code == status.HTTP_200_OK
 
-        new_end_time = (session.end_time + timedelta(minutes=30)).isoformat().replace(
-            "+00:00",
-            "Z",
+        new_end_time = (
+            (session.end_time + timedelta(minutes=30))
+            .isoformat()
+            .replace(
+                "+00:00",
+                "Z",
+            )
         )
 
         update_response = api_client.patch(

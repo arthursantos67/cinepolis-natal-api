@@ -106,6 +106,7 @@ class TestApiThrottling:
             room=room,
             start_time=timezone.now() + timedelta(days=1),
             end_time=timezone.now() + timedelta(days=1, hours=2),
+            base_price="30.00",
         )
         SessionSeat.objects.create(
             session=session,

@@ -38,6 +38,7 @@ def test_should_schedule_expiration_task_after_temporary_reservation(
         room=room,
         start_time=timezone.now() + timedelta(hours=1),
         end_time=timezone.now() + timedelta(hours=3),
+        base_price="30.00",
     )
 
     session_seat = SessionSeat.objects.create(

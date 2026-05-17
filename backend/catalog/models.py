@@ -1,8 +1,10 @@
 import uuid
+from decimal import Decimal
 
 from django.contrib.postgres.constraints import ExclusionConstraint
 from django.contrib.postgres.fields import DateTimeRangeField, RangeOperators
 from django.core.exceptions import ValidationError
+from django.core.validators import MinValueValidator
 from django.db import models
 from django.db.models import F, Func
 
@@ -85,6 +87,11 @@ class Session(models.Model):
     )
     start_time = models.DateTimeField()
     end_time = models.DateTimeField()
+    base_price = models.DecimalField(
+        max_digits=8,
+        decimal_places=2,
+        validators=[MinValueValidator(Decimal("0.01"))],
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -92,9 +99,7 @@ class Session(models.Model):
         super().clean()
 
         if self.end_time <= self.start_time:
-            raise ValidationError({
-                "end_time": "End time must be after start time."
-            })
+            raise ValidationError({"end_time": "End time must be after start time."})
 
         overlapping_sessions = Session.objects.filter(
             room=self.room,
@@ -107,9 +112,11 @@ class Session(models.Model):
 
         if overlapping_sessions.exists():
             raise ValidationError(
-                {"room": "This room already has a session scheduled for the selected time range."}
+                {
+                    "room": "This room already has a session scheduled for the selected time range."
+                }
             )
-    
+
     class Meta:
         db_table = "sessions"
         ordering = ["start_time"]
@@ -117,6 +124,10 @@ class Session(models.Model):
             models.CheckConstraint(
                 condition=models.Q(end_time__gt=models.F("start_time")),
                 name="session_end_time_gt_start_time",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(base_price__gt=0),
+                name="session_base_price_gt_0",
             ),
             ExclusionConstraint(
                 name="exclude_overlapping_sessions_per_room",
@@ -137,7 +148,8 @@ class Session(models.Model):
 
     def __str__(self):
         return f"{self.movie.title} - {self.room.name} - {self.start_time}"
-    
+
+
 class Genre(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     name = models.CharField(max_length=100, unique=True)

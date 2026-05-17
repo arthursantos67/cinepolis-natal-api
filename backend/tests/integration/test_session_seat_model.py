@@ -21,6 +21,7 @@ def test_create_session_seat_with_default_available_status():
         room=room,
         start_time=timezone.now(),
         end_time=timezone.now() + timezone.timedelta(hours=2),
+        base_price="30.00",
     )
     row = SeatRow.objects.create(room=room, name="A")
     seat = Seat.objects.create(row=row, number=1)
@@ -46,6 +47,7 @@ def test_session_seat_must_be_unique_per_session_and_seat():
         room=room,
         start_time=timezone.now(),
         end_time=timezone.now() + timezone.timedelta(hours=2),
+        base_price="30.00",
     )
     row = SeatRow.objects.create(room=room, name="A")
     seat = Seat.objects.create(row=row, number=1)
@@ -70,6 +72,7 @@ def test_reserved_session_seat_requires_locked_user_and_expiration():
         room=room,
         start_time=timezone.now(),
         end_time=timezone.now() + timezone.timedelta(hours=2),
+        base_price="30.00",
     )
     row = SeatRow.objects.create(room=room, name="A")
     seat = Seat.objects.create(row=row, number=1)
@@ -96,6 +99,7 @@ def test_available_session_seat_cannot_have_lock_metadata():
         room=room,
         start_time=timezone.now(),
         end_time=timezone.now() + timezone.timedelta(hours=2),
+        base_price="30.00",
     )
     row = SeatRow.objects.create(room=room, name="A")
     seat = Seat.objects.create(row=row, number=1)
@@ -129,6 +133,7 @@ def test_purchased_session_seat_cannot_have_lock_expiration():
         room=room,
         start_time=timezone.now(),
         end_time=timezone.now() + timezone.timedelta(hours=2),
+        base_price="30.00",
     )
     row = SeatRow.objects.create(room=room, name="A")
     seat = Seat.objects.create(row=row, number=1)
@@ -165,6 +170,7 @@ def test_session_seat_must_belong_to_same_room_as_session():
         room=room_1,
         start_time=timezone.now(),
         end_time=timezone.now() + timezone.timedelta(hours=2),
+        base_price="30.00",
     )
 
     row = SeatRow.objects.create(room=room_2, name="A")
@@ -188,6 +194,7 @@ def test_session_seat_string_representation():
         room=room,
         start_time=timezone.now(),
         end_time=timezone.now() + timezone.timedelta(hours=2),
+        base_price="30.00",
     )
     row = SeatRow.objects.create(room=room, name="A")
     seat = Seat.objects.create(row=row, number=1)

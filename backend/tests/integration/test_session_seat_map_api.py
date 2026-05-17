@@ -61,6 +61,7 @@ def test_session_seat_map_returns_full_seat_map():
         room=room,
         start_time=timezone.now(),
         end_time=timezone.now() + timezone.timedelta(hours=2),
+        base_price="30.00",
     )
 
     SessionSeat.objects.bulk_create(
@@ -117,6 +118,7 @@ def test_session_seat_map_is_publicly_accessible():
         room=room,
         start_time=timezone.now(),
         end_time=timezone.now() + timezone.timedelta(hours=2),
+        base_price="30.00",
     )
 
     SessionSeat.objects.create(session=session, seat=seat)

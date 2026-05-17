@@ -84,6 +84,7 @@ def create_session_with_seats():
         room=room,
         start_time=timezone.now() + timedelta(hours=2),
         end_time=timezone.now() + timedelta(hours=4),
+        base_price="30.00",
     )
 
     session_seat_1 = SessionSeat.objects.create(session=session, seat=seat_1)

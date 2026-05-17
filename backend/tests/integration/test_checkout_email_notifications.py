@@ -38,6 +38,7 @@ def _build_checkout_context(*, seat_numbers=(1, 2), reserved=True):
         room=room,
         start_time=start_time,
         end_time=start_time + timedelta(hours=2),
+        base_price="30.00",
     )
 
     seats = []

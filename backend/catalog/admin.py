@@ -24,6 +24,13 @@ class RoomAdmin(admin.ModelAdmin):
 
 @admin.register(Session)
 class SessionAdmin(admin.ModelAdmin):
-    list_display = ("movie", "room", "start_time", "end_time", "created_at")
+    list_display = (
+        "movie",
+        "room",
+        "start_time",
+        "end_time",
+        "base_price",
+        "created_at",
+    )
     list_filter = ("room", "start_time")
     search_fields = ("movie__title", "room__name")

@@ -36,6 +36,9 @@ Services:
 
 Backend commands and API documentation live in [`backend/README.md`](./backend/README.md).
 
+> Backend commands must run inside Docker. Do not run `poetry run` on the host;
+> use `docker compose exec backend ...` or `docker compose run --rm backend ...`.
+
 Common root-level Docker commands:
 
 ```bash

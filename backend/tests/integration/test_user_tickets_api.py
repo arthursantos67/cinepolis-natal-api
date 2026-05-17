@@ -45,6 +45,7 @@ def test_should_return_only_authenticated_user_tickets():
         room=room,
         start_time=timezone.now() + timedelta(hours=1),
         end_time=timezone.now() + timedelta(hours=2),
+        base_price="30.00",
     )
 
     session_seat = SessionSeat.objects.create(
@@ -96,6 +97,7 @@ def test_should_return_only_upcoming_tickets():
         room=room,
         start_time=timezone.now() + timedelta(days=1),
         end_time=timezone.now() + timedelta(days=1, hours=2),
+        base_price="30.00",
     )
 
     seat1 = Seat.objects.create(row=row, number=1)
@@ -112,6 +114,7 @@ def test_should_return_only_upcoming_tickets():
         room=room,
         start_time=timezone.now() - timedelta(days=1),
         end_time=timezone.now() - timedelta(hours=1),
+        base_price="30.00",
     )
 
     seat2 = Seat.objects.create(row=row, number=2)
@@ -154,6 +157,7 @@ def test_should_return_only_past_tickets():
         room=room,
         start_time=timezone.now() - timedelta(days=1),
         end_time=timezone.now() - timedelta(hours=1),
+        base_price="30.00",
     )
 
     seat = Seat.objects.create(row=row, number=1)

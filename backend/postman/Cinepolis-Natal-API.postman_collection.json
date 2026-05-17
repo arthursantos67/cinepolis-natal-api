@@ -615,7 +615,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"movie\": \"{{MOVIE_ID}}\",\n  \"room\": \"{{ROOM_ID}}\",\n  \"start_time\": \"2026-04-01T18:00:00Z\",\n  \"end_time\": \"2026-04-01T20:30:00Z\"\n}"
+              "raw": "{\n  \"movie\": \"{{MOVIE_ID}}\",\n  \"room\": \"{{ROOM_ID}}\",\n  \"start_time\": \"2026-04-01T18:00:00Z\",\n  \"end_time\": \"2026-04-01T20:30:00Z\",\n  \"base_price\": \"30.00\"\n}"
             },
             "url": {
               "raw": "{{BASE_URL}}/api/v1/catalog/sessions/",
