@@ -101,6 +101,7 @@ def _create_session_with_single_seat(movie_title="Error Handling Movie"):
         room=room,
         start_time=timezone.now() + timedelta(hours=1),
         end_time=timezone.now() + timedelta(hours=3),
+        base_price="30.00",
     )
 
     session_seat = SessionSeat.objects.create(

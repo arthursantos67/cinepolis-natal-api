@@ -101,6 +101,7 @@ def session(movie, room):
         room=room,
         start_time=now + timedelta(hours=1),
         end_time=now + timedelta(hours=3),
+        base_price="30.00",
     )
 
 

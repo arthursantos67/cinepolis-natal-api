@@ -42,6 +42,7 @@ def test_checkout_should_purchase_reserved_seats_successfully():
         room=room,
         start_time=timezone.now() + timedelta(hours=1),
         end_time=timezone.now() + timedelta(hours=3),
+        base_price="30.00",
     )
 
     session_seat = SessionSeat.objects.create(
@@ -103,6 +104,7 @@ def test_checkout_should_fail_for_expired_reservation():
         room=room,
         start_time=timezone.now() + timedelta(hours=1),
         end_time=timezone.now() + timedelta(hours=3),
+        base_price="30.00",
     )
 
     session_seat = SessionSeat.objects.create(
@@ -167,6 +169,7 @@ def test_checkout_should_fail_for_different_user():
         room=room,
         start_time=timezone.now() + timedelta(hours=1),
         end_time=timezone.now() + timedelta(hours=3),
+        base_price="30.00",
     )
 
     session_seat = SessionSeat.objects.create(
@@ -224,6 +227,7 @@ def test_checkout_should_be_atomic_when_one_seat_is_invalid():
         room=room,
         start_time=timezone.now() + timedelta(hours=1),
         end_time=timezone.now() + timedelta(hours=3),
+        base_price="30.00",
     )
 
     session_seat_valid = SessionSeat.objects.create(

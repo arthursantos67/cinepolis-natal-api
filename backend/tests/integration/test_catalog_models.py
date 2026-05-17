@@ -1,4 +1,5 @@
 import pytest
+from decimal import Decimal
 from datetime import timedelta
 
 from django.core.exceptions import ValidationError
@@ -110,9 +111,67 @@ class TestCatalogModels:
             room=room,
             start_time=start_time,
             end_time=end_time,
+            base_price="30.00",
         )
 
         assert session.id is not None
+        session.refresh_from_db()
+        assert session.base_price == Decimal("30.00")
+
+    def test_session_base_price_is_required(self):
+        genre = Genre.objects.create(name="Action")
+
+        movie = Movie.objects.create(
+            title="Interstellar",
+            synopsis="Space exploration",
+            duration_minutes=169,
+            release_date="2014-11-07",
+            poster_url="https://example.com/poster.jpg",
+        )
+        movie.genres.add(genre)
+
+        room = Room.objects.create(name="Room 1", capacity=100)
+
+        start_time = timezone.now() + timedelta(days=1)
+        end_time = start_time + timedelta(minutes=120)
+
+        session = Session(
+            movie=movie,
+            room=room,
+            start_time=start_time,
+            end_time=end_time,
+        )
+
+        with pytest.raises(ValidationError):
+            session.full_clean()
+
+    def test_session_base_price_must_be_positive(self):
+        genre = Genre.objects.create(name="Action")
+
+        movie = Movie.objects.create(
+            title="Interstellar",
+            synopsis="Space exploration",
+            duration_minutes=169,
+            release_date="2014-11-07",
+            poster_url="https://example.com/poster.jpg",
+        )
+        movie.genres.add(genre)
+
+        room = Room.objects.create(name="Room 1", capacity=100)
+
+        start_time = timezone.now() + timedelta(days=1)
+        end_time = start_time + timedelta(minutes=120)
+
+        session = Session(
+            movie=movie,
+            room=room,
+            start_time=start_time,
+            end_time=end_time,
+            base_price="0.00",
+        )
+
+        with pytest.raises(ValidationError):
+            session.full_clean()
 
     def test_session_end_time_must_be_after_start_time(self):
         genre = Genre.objects.create(name="Action")
@@ -136,6 +195,7 @@ class TestCatalogModels:
             room=room,
             start_time=start_time,
             end_time=end_time,
+            base_price="30.00",
         )
 
         with pytest.raises(ValidationError):
@@ -163,6 +223,7 @@ class TestCatalogModels:
             room=room,
             start_time=start_time,
             end_time=end_time,
+            base_price="30.00",
         )
 
         overlapping_start = start_time + timedelta(minutes=30)
@@ -173,6 +234,7 @@ class TestCatalogModels:
             room=room,
             start_time=overlapping_start,
             end_time=overlapping_end,
+            base_price="30.00",
         )
 
         with pytest.raises(ValidationError):
@@ -201,6 +263,7 @@ class TestCatalogModels:
             room=room1,
             start_time=start_time,
             end_time=end_time,
+            base_price="30.00",
         )
 
         session = Session.objects.create(
@@ -208,6 +271,7 @@ class TestCatalogModels:
             room=room2,
             start_time=start_time,
             end_time=end_time,
+            base_price="30.00",
         )
 
         assert session.id is not None

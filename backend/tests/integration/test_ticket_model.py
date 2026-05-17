@@ -37,6 +37,7 @@ def test_should_create_ticket_for_purchased_seat():
         room=room,
         start_time=timezone.now(),
         end_time=timezone.now(),
+        base_price="30.00",
     )
 
     session_seat = SessionSeat.objects.create(
@@ -80,6 +81,7 @@ def test_should_not_allow_ticket_for_non_purchased_seat():
         room=room,
         start_time=timezone.now(),
         end_time=timezone.now(),
+        base_price="30.00",
     )
 
     session_seat = SessionSeat.objects.create(
@@ -119,6 +121,7 @@ def test_should_generate_unique_ticket_codes():
         room=room,
         start_time=timezone.now(),
         end_time=timezone.now(),
+        base_price="30.00",
     )
 
     seat1 = Seat.objects.create(row=row, number=1)
