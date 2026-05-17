@@ -6,6 +6,20 @@ import django.core.validators
 from django.db import migrations, models
 
 
+LEGACY_SESSION_BASE_PRICE = Decimal("30.00")
+
+
+def backfill_legacy_session_base_price(apps, schema_editor):
+    Session = apps.get_model("catalog", "Session")
+
+    # Existing sessions predate pricing support. This explicit legacy backfill
+    # keeps the migration non-interactive while making the chosen value visible
+    # for operators to review and update after deployment when needed.
+    Session.objects.filter(base_price__isnull=True).update(
+        base_price=LEGACY_SESSION_BASE_PRICE
+    )
+
+
 class Migration(migrations.Migration):
 
     dependencies = [
@@ -18,11 +32,23 @@ class Migration(migrations.Migration):
             name="base_price",
             field=models.DecimalField(
                 decimal_places=2,
-                default=Decimal("30.00"),
+                max_digits=8,
+                null=True,
+                validators=[django.core.validators.MinValueValidator(Decimal("0.01"))],
+            ),
+        ),
+        migrations.RunPython(
+            backfill_legacy_session_base_price,
+            reverse_code=migrations.RunPython.noop,
+        ),
+        migrations.AlterField(
+            model_name="session",
+            name="base_price",
+            field=models.DecimalField(
+                decimal_places=2,
                 max_digits=8,
                 validators=[django.core.validators.MinValueValidator(Decimal("0.01"))],
             ),
-            preserve_default=False,
         ),
         migrations.AddConstraint(
             model_name="session",
