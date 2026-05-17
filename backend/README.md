@@ -118,7 +118,10 @@ The table below maps implemented requirements to concrete endpoints/components.
 
 ## Setup Instructions
 
-The Django application lives in `backend/`, but the supported local development flow is Docker-based from the repository root. The backend image installs Python dependencies during the Docker build, so contributors should not need to run Poetry directly on the host machine.
+The Django application lives in `backend/`, but the supported local development flow is Docker-based from the repository root. The backend image installs Python dependencies during the Docker build, so contributors should not run Poetry directly on the host machine.
+
+> Run backend commands inside Docker only. Use `docker compose exec backend ...`
+> or `docker compose run --rm backend ...`; do not use `poetry run` on the host.
 
 ```bash
 cp .env.example .env
@@ -198,6 +201,9 @@ From the repository root, with the Docker stack running:
 ```bash
 docker compose exec backend pytest -q
 ```
+
+Do not run backend tests with `poetry run` on the host. The test environment is
+Dockerized and should use the backend container.
 
 ### Run a specific test file
 
@@ -445,7 +451,7 @@ Expected: `200 OK` paginated ticket list. Optional filters:
 | `PATCH` | `{{BASE_URL}}/api/v1/catalog/rooms/{room_id}/` | No | `{"name":"Room Prime","capacity":100}` |
 | `DELETE` | `{{BASE_URL}}/api/v1/catalog/rooms/{room_id}/` | No | none |
 | `GET` | `{{BASE_URL}}/api/v1/catalog/sessions/` | No | none |
-| `POST` | `{{BASE_URL}}/api/v1/catalog/sessions/` | No | `{"movie":"{movie_id}","room":"{room_id}","start_time":"2026-03-23T18:00:00Z","end_time":"2026-03-23T20:55:00Z"}` |
+| `POST` | `{{BASE_URL}}/api/v1/catalog/sessions/` | No | `{"movie":"{movie_id}","room":"{room_id}","start_time":"2026-03-23T18:00:00Z","end_time":"2026-03-23T20:55:00Z","base_price":"30.00"}` |
 | `GET` | `{{BASE_URL}}/api/v1/catalog/sessions/{session_id}/` | No | none |
 | `PATCH` | `{{BASE_URL}}/api/v1/catalog/sessions/{session_id}/` | No | `{"end_time":"2026-03-23T21:10:00Z"}` |
 | `DELETE` | `{{BASE_URL}}/api/v1/catalog/sessions/{session_id}/` | No | none |
