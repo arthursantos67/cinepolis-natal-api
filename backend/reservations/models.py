@@ -53,6 +53,7 @@ class Seat(models.Model):
         related_name="seats",
     )
     number = models.PositiveIntegerField()
+    is_accessible = models.BooleanField(default=False)
 
     class Meta:
         db_table = "reservation_seats"
@@ -181,6 +182,7 @@ class SessionSeat(models.Model):
             f"{self.status}"
         )
         
+
 class Ticket(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     user = models.ForeignKey(

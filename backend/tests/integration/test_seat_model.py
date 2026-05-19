@@ -82,6 +82,17 @@ def test_create_seat_successfully():
     assert seat.row == row
     assert seat.number == 1
     assert seat.room == room
+    assert seat.is_accessible is False
+
+
+@pytest.mark.django_db
+def test_create_accessible_seat_successfully():
+    room = Room.objects.create(name="Room 1", capacity=100)
+    row = SeatRow.objects.create(room=room, name="A")
+
+    seat = Seat.objects.create(row=row, number=1, is_accessible=True)
+
+    assert seat.is_accessible is True
 
 
 @pytest.mark.django_db

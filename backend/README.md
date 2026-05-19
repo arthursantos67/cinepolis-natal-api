@@ -362,7 +362,7 @@ export SESSION_ID="<session-uuid>"
 curl -s "$BASE_URL/api/v1/reservation/sessions/$SESSION_ID/seats/"
 ```
 
-Expected: `200 OK` list of seat entries with `seat_id`, `row`, `number`, `status`.
+Expected: `200 OK` list of seat entries with `session_seat_id`, `seat_id`, `row`, `number`, `status`, and `is_accessible`. Authenticated responses also include `reserved_by_current_user`; seats reserved by the current user include `lock_expires_at`.
 
 ### 6) Reserve seats (temporary lock)
 
@@ -378,7 +378,20 @@ curl -s -X POST "$BASE_URL/api/v1/reservation/sessions/$SESSION_ID/reservations/
 
 Expected: `201 Created` with `status: TEMPORARILY_RESERVED`, `expires_at`, and reserved seats list.
 
-### 7) Checkout (ticket generation)
+### 7) Release a temporary reservation
+
+```bash
+export SESSION_SEAT_ID="<session-seat-uuid>"
+
+curl -s -X DELETE "$BASE_URL/api/v1/reservation/sessions/$SESSION_ID/reservations/" \
+	-H "Authorization: Bearer $ACCESS_TOKEN" \
+	-H "Content-Type: application/json" \
+	-d "{\"session_seat_ids\":[\"$SESSION_SEAT_ID\"]}"
+```
+
+Expected: `200 OK` with `status: RELEASED` and released seats restored to `AVAILABLE`.
+
+### 8) Checkout (ticket generation)
 
 ```bash
 curl -s -X POST "$BASE_URL/api/v1/reservation/checkout/" \
