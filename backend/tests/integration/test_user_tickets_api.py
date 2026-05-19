@@ -54,7 +54,13 @@ def test_should_return_only_authenticated_user_tickets():
         status=SessionSeatStatus.PURCHASED,
     )
 
-    Ticket.objects.create(user=user1, session_seat=session_seat)
+    Ticket.objects.create(
+        user=user1,
+        session_seat=session_seat,
+        ticket_type="inteira",
+        amount_paid="30.00",
+        payment_method="pix",
+    )
 
     # Ticket de outro usuário (não deve aparecer)
     session_seat_2 = SessionSeat.objects.create(
@@ -62,13 +68,20 @@ def test_should_return_only_authenticated_user_tickets():
         seat=Seat.objects.create(row=row, number=2),
         status=SessionSeatStatus.PURCHASED,
     )
-    Ticket.objects.create(user=user2, session_seat=session_seat_2)
+    Ticket.objects.create(
+        user=user2,
+        session_seat=session_seat_2,
+        ticket_type="inteira",
+        amount_paid="30.00",
+        payment_method="pix",
+    )
 
     response = client.get("/api/v1/users/me/tickets/")
 
     assert response.status_code == 200
     assert response.data["count"] == 1
-    
+
+
 @pytest.mark.django_db
 def test_should_return_only_upcoming_tickets():
     user = get_user_model().objects.create_user(
@@ -106,7 +119,13 @@ def test_should_return_only_upcoming_tickets():
         seat=seat1,
         status=SessionSeatStatus.PURCHASED,
     )
-    Ticket.objects.create(user=user, session_seat=ss1)
+    Ticket.objects.create(
+        user=user,
+        session_seat=ss1,
+        ticket_type="inteira",
+        amount_paid="30.00",
+        payment_method="pix",
+    )
 
     # PAST session
     past_session = Session.objects.create(
@@ -123,13 +142,20 @@ def test_should_return_only_upcoming_tickets():
         seat=seat2,
         status=SessionSeatStatus.PURCHASED,
     )
-    Ticket.objects.create(user=user, session_seat=ss2)
+    Ticket.objects.create(
+        user=user,
+        session_seat=ss2,
+        ticket_type="inteira",
+        amount_paid="30.00",
+        payment_method="pix",
+    )
 
     response = client.get("/api/v1/users/me/tickets/?type=upcoming")
 
     assert response.status_code == 200
     assert response.data["count"] == 1
-    
+
+
 @pytest.mark.django_db
 def test_should_return_only_past_tickets():
     user = get_user_model().objects.create_user(
@@ -166,13 +192,20 @@ def test_should_return_only_past_tickets():
         seat=seat,
         status=SessionSeatStatus.PURCHASED,
     )
-    Ticket.objects.create(user=user, session_seat=ss)
+    Ticket.objects.create(
+        user=user,
+        session_seat=ss,
+        ticket_type="inteira",
+        amount_paid="30.00",
+        payment_method="pix",
+    )
 
     response = client.get("/api/v1/users/me/tickets/?type=past")
 
     assert response.status_code == 200
     assert response.data["count"] == 1
-    
+
+
 @pytest.mark.django_db
 def test_should_require_authentication():
     client = APIClient()

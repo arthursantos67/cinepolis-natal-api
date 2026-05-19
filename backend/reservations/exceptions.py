@@ -35,3 +35,15 @@ class SeatAlreadyReservedApiException(APIException):
     status_code = 409
     default_code = "SEAT_ALREADY_RESERVED"
     default_detail = "One or more selected seats are already reserved or purchased."
+
+
+class InvalidTicketTypeApiException(APIException):
+    status_code = 400
+    default_code = "INVALID_TICKET_TYPE"
+    default_detail = "Unrecognized ticket_type value."
+
+
+class InvalidPaymentMethodApiException(APIException):
+    status_code = 400
+    default_code = "INVALID_PAYMENT_METHOD"
+    default_detail = "Unrecognized payment_method value."

@@ -397,14 +397,24 @@ Expected: `200 OK` with `status: RELEASED` and released seats restored to `AVAIL
 curl -s -X POST "$BASE_URL/api/v1/reservation/checkout/" \
 	-H "Authorization: Bearer $ACCESS_TOKEN" \
 	-H "Content-Type: application/json" \
-	-d "{\"session_id\":\"$SESSION_ID\",\"seat_ids\":[\"$SEAT_ID\"]}"
+	-d "{
+	  \"seats\": [
+	    {
+	      \"session_seat_id\": \"$SESSION_SEAT_ID\",
+	      \"ticket_type\": \"inteira\"
+	    }
+	  ],
+	  \"payment_method\": \"pix\"
+	}"
 ```
 
-Expected: `200 OK` with `status: PURCHASED`, `session_id`, and purchased seats summary.
+Expected: `200 OK` with `status: PURCHASED`, computed `total_amount`, purchased
+seats, and generated tickets. Pricing is computed server-side from
+`Session.base_price`: `inteira` charges 100%, `meia` charges 50%.
 
 The ticket records are created internally and can be verified via `GET /api/v1/users/me/tickets/`.
 
-### 8) List user tickets
+### 9) List user tickets
 
 ```bash
 curl -s "$BASE_URL/api/v1/users/me/tickets/" \
@@ -419,6 +429,8 @@ Expected: `200 OK` paginated ticket list. Optional filters:
 
 - Invalid credentials on login: `401` with `error.code = INVALID_CREDENTIALS`
 - Validation failure (missing/invalid fields): `400` with `error.code = VALIDATION_FAILED`
+- Invalid checkout ticket type: `400` with `error.code = INVALID_TICKET_TYPE`
+- Invalid checkout payment method: `400` with `error.code = INVALID_PAYMENT_METHOD`
 - Seat already reserved/purchased: `409` with `error.code = SEAT_ALREADY_RESERVED`
 - Rate limiting exceeded: `429` with `error.code = THROTTLED`
 
@@ -494,19 +506,19 @@ Notes:
 | `GET` | `{{BASE_URL}}/api/v1/reservation/session-seats/{session_seat_id}/` | No | none |
 | `DELETE` | `{{BASE_URL}}/api/v1/reservation/session-seats/{session_seat_id}/` | No | none |
 | `GET` | `{{BASE_URL}}/api/v1/reservation/tickets/` | No | none |
-| `POST` | `{{BASE_URL}}/api/v1/reservation/tickets/` | No | `{"user":"{user_id}","session_seat":"{session_seat_id}"}` |
+| `POST` | `{{BASE_URL}}/api/v1/reservation/tickets/` | No | `{"user":"{user_id}","session_seat":"{session_seat_id}","ticket_type":"inteira","amount_paid":"30.00","payment_method":"pix"}` |
 | `GET` | `{{BASE_URL}}/api/v1/reservation/tickets/{ticket_id}/` | No | none |
 | `DELETE` | `{{BASE_URL}}/api/v1/reservation/tickets/{ticket_id}/` | No | none |
 | `GET` | `{{BASE_URL}}/api/v1/reservation/sessions/{{SESSION_ID}}/seats/` | No | none |
 | `POST` | `{{BASE_URL}}/api/v1/reservation/sessions/{{SESSION_ID}}/reservations/` | Bearer | `{"seat_ids":["{{SEAT_ID}}"]}` |
-| `POST` | `{{BASE_URL}}/api/v1/reservation/checkout/` | Bearer | `{"session_id":"{{SESSION_ID}}","seat_ids":["{{SEAT_ID}}"]}` |
+| `POST` | `{{BASE_URL}}/api/v1/reservation/checkout/` | Bearer | `{"seats":[{"session_seat_id":"{{SESSION_SEAT_ID}}","ticket_type":"inteira"}],"payment_method":"pix"}` |
 
 Notes:
 
 - `SeatRow` and `Seat` support full CRUD because they are structural resources.
 - `SessionSeat` and `Ticket` intentionally do not expose `PATCH` endpoints.
 - `SessionSeat` state transitions should happen through reservation and checkout flows, not arbitrary updates.
-- `Ticket` creation is allowed for admin/testing scenarios, but application purchase flow should use checkout.
+- `Ticket` creation is allowed for admin/testing scenarios when the `SessionSeat` is already `PURCHASED`, but application purchase flow should use checkout.
 
 ## Error Handling
 

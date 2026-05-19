@@ -7,7 +7,10 @@ from django.utils import timezone
 
 from catalog.models import Movie, Room, Session
 from reservations.models import SessionSeat, SessionSeatStatus, Seat, SeatRow, Ticket
-from reservations.services.checkout_service import CheckoutService, InvalidSeatStateError
+from reservations.services.checkout_service import (
+    CheckoutService,
+    InvalidSeatStateError,
+)
 from reservations.services.ticket_confirmation_email_service import (
     build_ticket_confirmation_email,
 )
@@ -51,12 +54,12 @@ def _build_checkout_context(*, seat_numbers=(1, 2), reserved=True):
             session=session,
             seat=seat,
             status=(
-                SessionSeatStatus.RESERVED
-                if reserved
-                else SessionSeatStatus.AVAILABLE
+                SessionSeatStatus.RESERVED if reserved else SessionSeatStatus.AVAILABLE
             ),
             locked_by_user=user if reserved else None,
-            lock_expires_at=(timezone.now() + timedelta(minutes=10)) if reserved else None,
+            lock_expires_at=(timezone.now() + timedelta(minutes=10))
+            if reserved
+            else None,
         )
         session_seats.append(session_seat)
 
@@ -66,6 +69,16 @@ def _build_checkout_context(*, seat_numbers=(1, 2), reserved=True):
         "seats": seats,
         "session_seats": session_seats,
     }
+
+
+def _checkout_seat_payload(session_seats):
+    return [
+        {
+            "session_seat_id": session_seat.id,
+            "ticket_type": "inteira",
+        }
+        for session_seat in session_seats
+    ]
 
 
 @pytest.mark.django_db
@@ -81,8 +94,8 @@ def test_checkout_should_enqueue_ticket_confirmation_email_after_commit_only(
         ) as mocked_apply_async:
             with django_capture_on_commit_callbacks(execute=False) as callbacks:
                 service.execute(
-                    session_id=context["session"].id,
-                    seat_ids=[seat.id for seat in context["seats"]],
+                    seats=_checkout_seat_payload(context["session_seats"]),
+                    payment_method="pix",
                     user=context["user"],
                 )
 
@@ -96,8 +109,7 @@ def test_checkout_should_enqueue_ticket_confirmation_email_after_commit_only(
     mocked_apply_async.assert_called_once()
 
     created_ticket_ids = {
-        str(ticket.id)
-        for ticket in Ticket.objects.filter(user=context["user"])
+        str(ticket.id) for ticket in Ticket.objects.filter(user=context["user"])
     }
 
     task_call_kwargs = mocked_apply_async.call_args.kwargs
@@ -115,8 +127,8 @@ def test_checkout_should_not_schedule_email_task_when_checkout_fails():
     ) as mocked_apply_async:
         with pytest.raises(InvalidSeatStateError):
             service.execute(
-                session_id=context["session"].id,
-                seat_ids=[seat.id for seat in context["seats"]],
+                seats=_checkout_seat_payload(context["session_seats"]),
+                payment_method="pix",
                 user=context["user"],
             )
 
@@ -131,8 +143,8 @@ def test_ticket_confirmation_email_should_render_multiple_tickets_correctly():
 
     with patch.object(CheckoutService, "_release_redis_locks"):
         service.execute(
-            session_id=context["session"].id,
-            seat_ids=[seat.id for seat in context["seats"]],
+            seats=_checkout_seat_payload(context["session_seats"]),
+            payment_method="pix",
             user=context["user"],
         )
 

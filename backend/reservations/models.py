@@ -1,4 +1,5 @@
 import uuid
+from decimal import Decimal
 
 from django.core.exceptions import ValidationError
 from django.db import models
@@ -33,9 +34,7 @@ class SeatRow(models.Model):
             raise ValidationError({"name": "Seat row name cannot be blank."})
 
         if not self.name.isalpha():
-            raise ValidationError(
-                {"name": "Seat row name must contain letters only."}
-            )
+            raise ValidationError({"name": "Seat row name must contain letters only."})
 
     def save(self, *args, **kwargs):
         self.full_clean()
@@ -88,6 +87,16 @@ class SessionSeatStatus(models.TextChoices):
     AVAILABLE = "AVAILABLE", "Available"
     RESERVED = "RESERVED", "Reserved"
     PURCHASED = "PURCHASED", "Purchased"
+
+
+class TicketType(models.TextChoices):
+    INTEIRA = "inteira", "Inteira"
+    MEIA = "meia", "Meia"
+
+
+class PaymentMethod(models.TextChoices):
+    CARTAO_CREDITO = "cartao_credito", "Cartao de credito"
+    PIX = "pix", "PIX"
 
 
 class SessionSeat(models.Model):
@@ -147,7 +156,9 @@ class SessionSeat(models.Model):
                 )
             if self.lock_expires_at is not None:
                 raise ValidationError(
-                    {"lock_expires_at": "Available seats cannot have a lock expiration."}
+                    {
+                        "lock_expires_at": "Available seats cannot have a lock expiration."
+                    }
                 )
 
         elif self.status == SessionSeatStatus.RESERVED:
@@ -167,7 +178,9 @@ class SessionSeat(models.Model):
                 )
             if self.lock_expires_at is not None:
                 raise ValidationError(
-                    {"lock_expires_at": "Purchased seats cannot have a lock expiration."}
+                    {
+                        "lock_expires_at": "Purchased seats cannot have a lock expiration."
+                    }
                 )
 
     def save(self, *args, **kwargs):
@@ -181,7 +194,7 @@ class SessionSeat(models.Model):
             f"{self.seat.row.name}{self.seat.number} | "
             f"{self.status}"
         )
-        
+
 
 class Ticket(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
@@ -196,6 +209,20 @@ class Ticket(models.Model):
         related_name="ticket",
     )
     ticket_code = models.CharField(max_length=64, unique=True, editable=False)
+    ticket_type = models.CharField(
+        max_length=20,
+        choices=TicketType.choices,
+        default=TicketType.INTEIRA,
+    )
+    amount_paid = models.DecimalField(
+        max_digits=8,
+        decimal_places=2,
+    )
+    payment_method = models.CharField(
+        max_length=20,
+        choices=PaymentMethod.choices,
+        default=PaymentMethod.PIX,
+    )
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -209,6 +236,15 @@ class Ticket(models.Model):
     @staticmethod
     def generate_ticket_code() -> str:
         return uuid.uuid4().hex.upper()
+
+    @staticmethod
+    def calculate_amount(base_price, ticket_type):
+        base_price = Decimal(str(base_price))
+
+        if ticket_type == TicketType.MEIA:
+            return (base_price * Decimal("0.50")).quantize(Decimal("0.01"))
+
+        return base_price.quantize(Decimal("0.01"))
 
     def clean(self):
         if self.session_seat_id and self.user_id:

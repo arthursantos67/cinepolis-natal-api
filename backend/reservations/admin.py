@@ -4,6 +4,7 @@ from django.core.exceptions import ValidationError
 
 from .models import Seat, SeatRow, SessionSeat, Ticket
 
+
 class SessionSeatAdminForm(forms.ModelForm):
     class Meta:
         model = SessionSeat
@@ -62,28 +63,36 @@ class SessionSeatAdmin(admin.ModelAdmin):
 
     def formfield_for_foreignkey(self, db_field, request, **kwargs):
         if db_field.name == "session":
-            kwargs["queryset"] = (
-                db_field.related_model.objects.select_related("movie", "room")
-                .order_by("movie__title", "start_time")
-            )
+            kwargs["queryset"] = db_field.related_model.objects.select_related(
+                "movie", "room"
+            ).order_by("movie__title", "start_time")
         elif db_field.name == "seat":
-            kwargs["queryset"] = (
-                db_field.related_model.objects.select_related("row", "row__room")
-                .order_by("row__room__name", "row__name", "number")
-            )
+            kwargs["queryset"] = db_field.related_model.objects.select_related(
+                "row", "row__room"
+            ).order_by("row__room__name", "row__name", "number")
         return super().formfield_for_foreignkey(db_field, request, **kwargs)
 
     @admin.display(ordering="session__room__name", description="Room")
     def room(self, obj):
         return obj.session.room.name
-    
+
+
 @admin.register(Ticket)
 class TicketAdmin(admin.ModelAdmin):
-    list_display = ("id", "ticket_code", "user", "session_seat", "created_at")
+    list_display = (
+        "id",
+        "ticket_code",
+        "user",
+        "session_seat",
+        "ticket_type",
+        "amount_paid",
+        "payment_method",
+        "created_at",
+    )
     search_fields = (
         "ticket_code",
         "user__email",
         "session_seat__session__movie__title",
     )
-    list_filter = ("created_at",)
+    list_filter = ("ticket_type", "payment_method", "created_at")
     ordering = ("-created_at",)

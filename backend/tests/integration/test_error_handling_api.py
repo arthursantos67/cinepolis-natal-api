@@ -160,8 +160,13 @@ def test_error_schema_for_403_permission_denied(api_client):
     response = api_client.post(
         "/api/v1/reservation/checkout/",
         {
-            "session_id": str(session.id),
-            "seat_ids": [str(session_seat.seat_id)],
+            "seats": [
+                {
+                    "session_seat_id": str(session_seat.id),
+                    "ticket_type": "inteira",
+                }
+            ],
+            "payment_method": "pix",
         },
         format="json",
     )
@@ -195,7 +200,9 @@ def test_error_schema_for_409_conflict(api_client):
         password="StrongPass123!",
     )
 
-    session, session_seat = _create_session_with_single_seat(movie_title="Conflict Movie")
+    session, session_seat = _create_session_with_single_seat(
+        movie_title="Conflict Movie"
+    )
 
     session_seat.status = SessionSeatStatus.RESERVED
     session_seat.locked_by_user = owner

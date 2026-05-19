@@ -44,6 +44,7 @@ from reservations.services.checkout_service import (
     InvalidSeatStateError,
     CheckoutService,
     InvalidSeatSelectionError as CheckoutInvalidSeatSelectionError,
+    InvalidSubmittedTotalError,
     ReservationOwnershipError,
 )
 from reservations.services.release_service import (
@@ -273,12 +274,15 @@ class CheckoutView(GenericAPIView):
 
         try:
             checkout_result = service.execute(
-                session_id=serializer.validated_data["session_id"],
-                seat_ids=serializer.validated_data["seat_ids"],
+                seats=serializer.validated_data["seats"],
+                payment_method=serializer.validated_data["payment_method"],
                 user=request.user,
+                submitted_total=serializer.validated_data.get("total_amount"),
             )
         except CheckoutInvalidSeatSelectionError as exc:
-            raise ValidationError(detail={"seat_ids": [str(exc)]}) from exc
+            raise ValidationError(detail={"seats": [str(exc)]}) from exc
+        except InvalidSubmittedTotalError as exc:
+            raise ValidationError(detail={"total_amount": [str(exc)]}) from exc
         except ReservationOwnershipError as exc:
             raise PermissionDenied(detail=str(exc)) from exc
         except ExpiredReservationError as exc:
