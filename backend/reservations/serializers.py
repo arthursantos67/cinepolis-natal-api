@@ -1,6 +1,18 @@
 from rest_framework import serializers
 
-from reservations.models import Seat, SeatRow, SessionSeat, SessionSeatStatus, Ticket
+from reservations.exceptions import (
+    InvalidPaymentMethodApiException,
+    InvalidTicketTypeApiException,
+)
+from reservations.models import (
+    PaymentMethod,
+    Seat,
+    SeatRow,
+    SessionSeat,
+    SessionSeatStatus,
+    Ticket,
+    TicketType,
+)
 
 
 class SeatRowSerializer(serializers.ModelSerializer):
@@ -34,7 +46,16 @@ class SessionSeatSerializer(serializers.ModelSerializer):
 class TicketSerializer(serializers.ModelSerializer):
     class Meta:
         model = Ticket
-        fields = ["id", "user", "session_seat", "ticket_code", "created_at"]
+        fields = [
+            "id",
+            "user",
+            "session_seat",
+            "ticket_code",
+            "ticket_type",
+            "amount_paid",
+            "payment_method",
+            "created_at",
+        ]
         read_only_fields = ["id", "ticket_code", "created_at"]
 
 
@@ -159,27 +180,67 @@ class TemporaryReservationReleaseResponseSerializer(serializers.Serializer):
     seats = TemporaryReservationReleaseSeatSerializer(many=True)
 
 
+class CheckoutSeatRequestSerializer(serializers.Serializer):
+    session_seat_id = serializers.UUIDField()
+    ticket_type = serializers.CharField()
+
+    def validate_ticket_type(self, value):
+        if value not in TicketType.values:
+            raise InvalidTicketTypeApiException()
+
+        return value
+
+
 class CheckoutRequestSerializer(serializers.Serializer):
-    session_id = serializers.UUIDField()
-    seat_ids = serializers.ListField(
-        child=serializers.UUIDField(),
+    seats = serializers.ListField(
+        child=CheckoutSeatRequestSerializer(),
         allow_empty=False,
     )
+    payment_method = serializers.CharField()
+    total_amount = serializers.DecimalField(
+        max_digits=8,
+        decimal_places=2,
+        required=False,
+    )
 
-    def validate_seat_ids(self, value):
-        if len(value) != len(set(value)):
-            raise serializers.ValidationError("Seat IDs must be unique.")
+    def validate_payment_method(self, value):
+        if value not in PaymentMethod.values:
+            raise InvalidPaymentMethodApiException()
+
+        return value
+
+    def validate_seats(self, value):
+        session_seat_ids = [seat["session_seat_id"] for seat in value]
+
+        if len(session_seat_ids) != len(set(session_seat_ids)):
+            raise serializers.ValidationError("Session seat IDs must be unique.")
+
         return value
 
 
 class CheckoutSeatResponseSerializer(serializers.Serializer):
+    session_seat_id = serializers.UUIDField()
     seat_id = serializers.UUIDField()
     row = serializers.CharField()
     number = serializers.IntegerField()
     status = serializers.CharField()
+    ticket_type = serializers.CharField()
+    amount_paid = serializers.DecimalField(max_digits=8, decimal_places=2)
+
+
+class CheckoutTicketResponseSerializer(serializers.Serializer):
+    ticket_id = serializers.UUIDField()
+    ticket_code = serializers.CharField()
+    session_seat_id = serializers.UUIDField()
+    seat_id = serializers.UUIDField()
+    ticket_type = serializers.CharField()
+    amount_paid = serializers.DecimalField(max_digits=8, decimal_places=2)
+    payment_method = serializers.CharField()
 
 
 class CheckoutResponseSerializer(serializers.Serializer):
     status = serializers.CharField()
-    session_id = serializers.UUIDField()
+    payment_method = serializers.CharField()
+    total_amount = serializers.DecimalField(max_digits=8, decimal_places=2)
     seats = CheckoutSeatResponseSerializer(many=True)
+    tickets = CheckoutTicketResponseSerializer(many=True)

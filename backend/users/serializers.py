@@ -94,6 +94,9 @@ class UserTicketSerializer(serializers.ModelSerializer):
         fields = (
             "ticket_id",
             "ticket_code",
+            "ticket_type",
+            "amount_paid",
+            "payment_method",
             "created_at",
             "session",
             "movie",

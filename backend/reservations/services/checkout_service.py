@@ -1,3 +1,5 @@
+from decimal import Decimal
+
 from django.db import transaction
 from django.utils import timezone
 
@@ -26,36 +28,44 @@ class InvalidSeatStateError(CheckoutError):
     pass
 
 
+class InvalidSubmittedTotalError(CheckoutError):
+    pass
+
+
 class CheckoutService:
-    INVALID_SELECTION_MESSAGE = (
-        "One or more selected seats do not belong to this session."
-    )
+    INVALID_SELECTION_MESSAGE = "One or more selected seats are invalid for checkout."
     OWNERSHIP_MESSAGE = "One or more selected seats are not locked by this user."
     EXPIRED_MESSAGE = "One or more selected seats have expired reservations."
     INVALID_STATE_MESSAGE = "One or more selected seats are not available for checkout."
+    INVALID_TOTAL_MESSAGE = "Submitted total does not match the computed total."
 
     def __init__(self):
         self.lock_manager = SeatLockManager()
 
     @transaction.atomic
-    def execute(self, *, session_id, seat_ids, user):
-        ordered_seat_ids = sorted(set(seat_ids))
+    def execute(self, *, seats, payment_method, user, submitted_total=None):
+        ordered_session_seat_ids = sorted(
+            {seat["session_seat_id"] for seat in seats},
+            key=str,
+        )
+        ticket_type_by_session_seat_id = {
+            seat["session_seat_id"]: seat["ticket_type"] for seat in seats
+        }
         now = timezone.now()
 
         session_seats = list(
             SessionSeat.objects.select_for_update()
-            .select_related("seat", "seat__row")
-            .filter(
-                session_id=session_id,
-                seat_id__in=ordered_seat_ids,
-            )
-            .order_by("seat_id")
+            .select_related("seat", "seat__row", "session")
+            .filter(id__in=ordered_session_seat_ids)
+            .order_by("id")
         )
 
-        if len(session_seats) != len(ordered_seat_ids):
+        if len(session_seats) != len(ordered_session_seat_ids):
             raise InvalidSeatSelectionError(self.INVALID_SELECTION_MESSAGE)
 
         purchased_seats = []
+        computed_amount_by_session_seat_id = {}
+        computed_total = Decimal("0.00")
 
         for session_seat in session_seats:
             if session_seat.status != SessionSeatStatus.RESERVED:
@@ -70,10 +80,21 @@ class CheckoutService:
             ):
                 raise ExpiredReservationError(self.EXPIRED_MESSAGE)
 
+            ticket_type = ticket_type_by_session_seat_id[session_seat.id]
+            amount_paid = Ticket.calculate_amount(
+                session_seat.session.base_price,
+                ticket_type,
+            )
+            computed_amount_by_session_seat_id[session_seat.id] = amount_paid
+            computed_total += amount_paid
+
             session_seat.status = SessionSeatStatus.PURCHASED
             session_seat.locked_by_user = None
             session_seat.lock_expires_at = None
             purchased_seats.append(session_seat)
+
+        if submitted_total is not None and submitted_total != computed_total:
+            raise InvalidSubmittedTotalError(self.INVALID_TOTAL_MESSAGE)
 
         SessionSeat.objects.bulk_update(
             purchased_seats,
@@ -85,6 +106,9 @@ class CheckoutService:
             ticket = Ticket.objects.create(
                 user=user,
                 session_seat=session_seat,
+                ticket_type=ticket_type_by_session_seat_id[session_seat.id],
+                amount_paid=computed_amount_by_session_seat_id[session_seat.id],
+                payment_method=payment_method,
             )
             tickets.append(ticket)
 
@@ -93,7 +117,6 @@ class CheckoutService:
 
         transaction.on_commit(
             lambda: self._release_redis_locks(
-                session_id=session_id,
                 session_seats=purchased_seats,
             )
         )
@@ -108,13 +131,17 @@ class CheckoutService:
 
         return {
             "status": "PURCHASED",
-            "session_id": session_id,
+            "payment_method": payment_method,
+            "total_amount": computed_total,
             "seats": [
                 {
+                    "session_seat_id": str(session_seat.id),
                     "seat_id": str(session_seat.seat_id),
                     "row": session_seat.seat.row.name,
                     "number": session_seat.seat.number,
                     "status": session_seat.status,
+                    "ticket_type": ticket_type_by_session_seat_id[session_seat.id],
+                    "amount_paid": computed_amount_by_session_seat_id[session_seat.id],
                 }
                 for session_seat in purchased_seats
             ],
@@ -122,16 +149,20 @@ class CheckoutService:
                 {
                     "ticket_id": str(ticket.id),
                     "ticket_code": ticket.ticket_code,
+                    "session_seat_id": str(ticket.session_seat_id),
                     "seat_id": str(ticket.session_seat.seat_id),
+                    "ticket_type": ticket.ticket_type,
+                    "amount_paid": ticket.amount_paid,
+                    "payment_method": ticket.payment_method,
                 }
                 for ticket in tickets
             ],
         }
 
-    def _release_redis_locks(self, *, session_id, session_seats):
+    def _release_redis_locks(self, *, session_seats):
         for session_seat in session_seats:
             self.lock_manager.release(
-                session_id=session_id,
+                session_id=session_seat.session_id,
                 seat_id=session_seat.seat_id,
             )
 

@@ -929,7 +929,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"session_id\": \"{{SESSION_ID}}\",\n  \"seat_ids\": [\"{{SEAT_ID}}\"]\n}"
+              "raw": "{\n  \"seats\": [\n    {\n      \"session_seat_id\": \"{{SESSION_SEAT_ID}}\",\n      \"ticket_type\": \"inteira\"\n    }\n  ],\n  \"payment_method\": \"pix\"\n}"
             },
             "url": {
               "raw": "{{BASE_URL}}/api/v1/reservation/checkout/",
