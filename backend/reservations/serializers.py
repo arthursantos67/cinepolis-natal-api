@@ -1,6 +1,6 @@
 from rest_framework import serializers
 
-from reservations.models import Seat, SeatRow, SessionSeat, Ticket
+from reservations.models import Seat, SeatRow, SessionSeat, SessionSeatStatus, Ticket
 
 
 class SeatRowSerializer(serializers.ModelSerializer):
@@ -69,7 +69,7 @@ class SessionSeatMapItemSerializer(serializers.ModelSerializer):
         return bool(
             user
             and user.is_authenticated
-            and obj.status == "RESERVED"
+            and obj.status == SessionSeatStatus.RESERVED
             and obj.locked_by_user_id == user.id
         )
 

@@ -371,7 +371,7 @@ def test_temporary_reservation_fails_atomically_for_mixed_availability():
     assert session_seat_1.lock_expires_at is None
 
 
-def test_release_temporary_reservation_success():
+def test_release_temporary_reservation_success(django_capture_on_commit_callbacks):
     cache.clear()
     client = APIClient()
     user = create_user()
@@ -395,13 +395,19 @@ def test_release_temporary_reservation_success():
         kwargs={"session_id": session.id},
     )
 
-    response = client.delete(
-        url,
-        {"session_seat_ids": [str(session_seat.id)]},
-        format="json",
-    )
+    with django_capture_on_commit_callbacks(execute=False) as callbacks:
+        response = client.delete(
+            url,
+            {"session_seat_ids": [str(session_seat.id)]},
+            format="json",
+        )
 
     assert response.status_code == 200
+    assert len(callbacks) == 1
+    assert cache.get(lock_key) == str(user.id)
+
+    callbacks[0]()
+
     assert response.data["status"] == "RELEASED"
     assert response.data["session_id"] == str(session.id)
     assert response.data["seats"] == [
@@ -480,6 +486,23 @@ def test_release_temporary_reservation_rejects_invalid_session_seat_selection():
     assert response.status_code == 400
     assert response.data["error"]["code"] == "VALIDATION_FAILED"
     assert "session_seat_ids" in response.data["error"]["details"]
+
+
+def test_release_temporary_reservation_returns_404_for_missing_session():
+    client = APIClient()
+    user = create_user()
+    client.force_authenticate(user=user)
+
+    response = client.delete(
+        reverse(
+            "temporary-seat-reservation",
+            kwargs={"session_id": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"},
+        ),
+        {"session_seat_ids": ["bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"]},
+        format="json",
+    )
+
+    assert response.status_code == 404
 
 
 def test_release_temporary_reservation_rejects_expired_reservation():

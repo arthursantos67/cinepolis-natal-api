@@ -143,7 +143,7 @@ class SessionSeatMapView(ListAPIView):
         session = get_object_or_404(Session, id=self.kwargs["session_id"])
 
         return (
-            SessionSeat.objects.select_related("seat", "seat__row", "locked_by_user")
+            SessionSeat.objects.select_related("seat", "seat__row")
             .filter(session=session)
             .order_by("seat__row__name", "seat__number")
         )
@@ -171,6 +171,7 @@ class SessionSeatMapView(ListAPIView):
         responses={
             200: TemporaryReservationReleaseResponseSerializer,
             400: OpenApiResponse(description="Validation error."),
+            404: OpenApiResponse(description="Session not found."),
             403: OpenApiResponse(description="Reservation ownership error."),
             409: OpenApiResponse(
                 description="Reservation expired or invalid seat state."
@@ -225,6 +226,8 @@ class TemporarySeatReservationView(GenericAPIView):
                 session_seat_ids=serializer.validated_data["session_seat_ids"],
                 user=request.user,
             )
+        except SessionNotFoundError as exc:
+            raise NotFound(detail=str(exc)) from exc
         except InvalidSessionSeatSelectionError as exc:
             raise ValidationError(detail={"session_seat_ids": [str(exc)]}) from exc
         except ReleaseReservationOwnershipError as exc:

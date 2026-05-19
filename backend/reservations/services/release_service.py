@@ -1,6 +1,8 @@
 from django.db import transaction
 from django.utils import timezone
 
+from catalog.models import Session
+from reservations.exceptions import SessionNotFoundError
 from reservations.locks import SeatLockManager
 from reservations.models import SessionSeat, SessionSeatStatus
 
@@ -37,6 +39,10 @@ class TemporaryReservationReleaseService:
         self.lock_manager = SeatLockManager()
 
     def execute(self, *, session_id, session_seat_ids, user):
+        session_exists = Session.objects.filter(id=session_id).exists()
+        if not session_exists:
+            raise SessionNotFoundError("Session not found.")
+
         ordered_session_seat_ids = sorted(set(session_seat_ids))
         now = timezone.now()
 
@@ -79,10 +85,12 @@ class TemporaryReservationReleaseService:
                 ["status", "locked_by_user", "lock_expires_at"],
             )
 
-        self._release_redis_locks(
-            session_id=session_id,
-            session_seats=session_seats,
-        )
+            transaction.on_commit(
+                lambda: self._release_redis_locks(
+                    session_id=session_id,
+                    session_seats=session_seats,
+                )
+            )
 
         return {
             "session_id": session_id,
