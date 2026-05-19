@@ -1,15 +1,16 @@
 from datetime import timedelta
 
 import pytest
+from django.core.cache import cache
 from django.test import override_settings
 from django.urls import reverse
 from django.utils import timezone
 from rest_framework.test import APIClient
 
 from catalog.models import Movie, Room, Session
+from reservations.locks import SeatLockManager
 from reservations.models import Seat, SeatRow, SessionSeat, SessionSeatStatus
 from users.models import User
-
 
 REST_FRAMEWORK_OVERRIDE = {
     "DEFAULT_AUTHENTICATION_CLASSES": [
@@ -60,9 +61,10 @@ def create_user(email="user@example.com", password="StrongPass123!"):
         password=password,
     )
 
-def create_session_with_seats():
+
+def create_session_with_seats(movie_title="Interstellar", room_name="Room 1"):
     movie = Movie.objects.create(
-        title="Interstellar",
+        title=movie_title,
         synopsis="A science fiction film.",
         duration_minutes=169,
         release_date="2014-11-07",
@@ -70,7 +72,7 @@ def create_session_with_seats():
     )
 
     room = Room.objects.create(
-        name="Room 1",
+        name=room_name,
         capacity=10,
     )
 
@@ -367,3 +369,204 @@ def test_temporary_reservation_fails_atomically_for_mixed_availability():
     assert session_seat_1.status == SessionSeatStatus.AVAILABLE
     assert session_seat_1.locked_by_user is None
     assert session_seat_1.lock_expires_at is None
+
+
+def test_release_temporary_reservation_success(django_capture_on_commit_callbacks):
+    cache.clear()
+    client = APIClient()
+    user = create_user()
+    client.force_authenticate(user=user)
+
+    data = create_session_with_seats()
+    session = data["session"]
+    session_seat = data["session_seats"][0]
+    session_seat.seat.is_accessible = True
+    session_seat.seat.save(update_fields=["is_accessible"])
+    session_seat.status = SessionSeatStatus.RESERVED
+    session_seat.locked_by_user = user
+    session_seat.lock_expires_at = timezone.now() + timedelta(minutes=10)
+    session_seat.save()
+
+    lock_key = SeatLockManager.build_key(session.id, session_seat.seat_id)
+    cache.set(lock_key, str(user.id), timeout=600)
+
+    url = reverse(
+        "temporary-seat-reservation",
+        kwargs={"session_id": session.id},
+    )
+
+    with django_capture_on_commit_callbacks(execute=False) as callbacks:
+        response = client.delete(
+            url,
+            {"session_seat_ids": [str(session_seat.id)]},
+            format="json",
+        )
+
+    assert response.status_code == 200
+    assert len(callbacks) == 1
+    assert cache.get(lock_key) == str(user.id)
+
+    callbacks[0]()
+
+    assert response.data["status"] == "RELEASED"
+    assert response.data["session_id"] == str(session.id)
+    assert response.data["seats"] == [
+        {
+            "session_seat_id": str(session_seat.id),
+            "seat_id": str(session_seat.seat_id),
+            "row": "A",
+            "number": 1,
+            "status": SessionSeatStatus.AVAILABLE,
+            "is_accessible": True,
+        }
+    ]
+
+    session_seat.refresh_from_db()
+    assert session_seat.status == SessionSeatStatus.AVAILABLE
+    assert session_seat.locked_by_user is None
+    assert session_seat.lock_expires_at is None
+    assert cache.get(lock_key) is None
+
+
+def test_release_temporary_reservation_requires_authentication():
+    client = APIClient()
+    user = create_user()
+
+    data = create_session_with_seats()
+    session = data["session"]
+    session_seat = data["session_seats"][0]
+    session_seat.status = SessionSeatStatus.RESERVED
+    session_seat.locked_by_user = user
+    session_seat.lock_expires_at = timezone.now() + timedelta(minutes=10)
+    session_seat.save()
+
+    url = reverse(
+        "temporary-seat-reservation",
+        kwargs={"session_id": session.id},
+    )
+
+    response = client.delete(
+        url,
+        {"session_seat_ids": [str(session_seat.id)]},
+        format="json",
+    )
+
+    assert response.status_code == 401
+
+    session_seat.refresh_from_db()
+    assert session_seat.status == SessionSeatStatus.RESERVED
+    assert session_seat.locked_by_user == user
+    assert session_seat.lock_expires_at is not None
+
+
+def test_release_temporary_reservation_rejects_invalid_session_seat_selection():
+    client = APIClient()
+    user = create_user()
+    client.force_authenticate(user=user)
+
+    data = create_session_with_seats()
+    session = data["session"]
+    other_data = create_session_with_seats(
+        movie_title="Interstellar 2",
+        room_name="Room 2",
+    )
+    other_session_seat = other_data["session_seats"][0]
+
+    url = reverse(
+        "temporary-seat-reservation",
+        kwargs={"session_id": session.id},
+    )
+
+    response = client.delete(
+        url,
+        {"session_seat_ids": [str(other_session_seat.id)]},
+        format="json",
+    )
+
+    assert response.status_code == 400
+    assert response.data["error"]["code"] == "VALIDATION_FAILED"
+    assert "session_seat_ids" in response.data["error"]["details"]
+
+
+def test_release_temporary_reservation_returns_404_for_missing_session():
+    client = APIClient()
+    user = create_user()
+    client.force_authenticate(user=user)
+
+    response = client.delete(
+        reverse(
+            "temporary-seat-reservation",
+            kwargs={"session_id": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"},
+        ),
+        {"session_seat_ids": ["bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"]},
+        format="json",
+    )
+
+    assert response.status_code == 404
+
+
+def test_release_temporary_reservation_rejects_expired_reservation():
+    client = APIClient()
+    user = create_user()
+    client.force_authenticate(user=user)
+
+    data = create_session_with_seats()
+    session = data["session"]
+    session_seat = data["session_seats"][0]
+    session_seat.status = SessionSeatStatus.RESERVED
+    session_seat.locked_by_user = user
+    session_seat.lock_expires_at = timezone.now() - timedelta(minutes=1)
+    session_seat.save()
+
+    url = reverse(
+        "temporary-seat-reservation",
+        kwargs={"session_id": session.id},
+    )
+
+    response = client.delete(
+        url,
+        {"session_seat_ids": [str(session_seat.id)]},
+        format="json",
+    )
+
+    assert response.status_code == 409
+    assert response.data["error"]["code"] == "SEAT_ALREADY_RESERVED"
+
+    session_seat.refresh_from_db()
+    assert session_seat.status == SessionSeatStatus.RESERVED
+    assert session_seat.locked_by_user == user
+    assert session_seat.lock_expires_at is not None
+
+
+def test_release_temporary_reservation_rejects_ownership_mismatch():
+    client = APIClient()
+    owner = create_user(email="release-owner@example.com")
+    requester = create_user(email="release-requester@example.com")
+    client.force_authenticate(user=requester)
+
+    data = create_session_with_seats()
+    session = data["session"]
+    session_seat = data["session_seats"][0]
+    session_seat.status = SessionSeatStatus.RESERVED
+    session_seat.locked_by_user = owner
+    session_seat.lock_expires_at = timezone.now() + timedelta(minutes=10)
+    session_seat.save()
+
+    url = reverse(
+        "temporary-seat-reservation",
+        kwargs={"session_id": session.id},
+    )
+
+    response = client.delete(
+        url,
+        {"session_seat_ids": [str(session_seat.id)]},
+        format="json",
+    )
+
+    assert response.status_code == 403
+    assert response.data["error"]["code"] == "PERMISSION_DENIED"
+
+    session_seat.refresh_from_db()
+    assert session_seat.status == SessionSeatStatus.RESERVED
+    assert session_seat.locked_by_user == owner
+    assert session_seat.lock_expires_at is not None

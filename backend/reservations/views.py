@@ -30,16 +30,27 @@ from reservations.serializers import (
     SessionSeatSerializer,
     SessionSeatMapItemSerializer,
     TicketSerializer,
+    TemporaryReservationReleaseRequestSerializer,
+    TemporaryReservationReleaseResponseSerializer,
     TemporaryReservationRequestSerializer,
     TemporaryReservationResponseSerializer,
 )
-from reservations.services import TemporaryReservationService
+from reservations.services import (
+    TemporaryReservationReleaseService,
+    TemporaryReservationService,
+)
 from reservations.services.checkout_service import (
     ExpiredReservationError,
     InvalidSeatStateError,
     CheckoutService,
     InvalidSeatSelectionError as CheckoutInvalidSeatSelectionError,
     ReservationOwnershipError,
+)
+from reservations.services.release_service import (
+    ExpiredReservationReleaseError,
+    InvalidReservationReleaseStateError,
+    InvalidSessionSeatSelectionError,
+    ReleaseReservationOwnershipError,
 )
 
 
@@ -151,7 +162,23 @@ class SessionSeatMapView(ListAPIView):
             409: OpenApiResponse(description="Seat unavailable."),
             429: OpenApiResponse(description="Too many reservation attempts."),
         },
-    )
+    ),
+    delete=extend_schema(
+        tags=["Reservations"],
+        summary="Release temporary reservations",
+        description="Release temporary reservations owned by the authenticated user.",
+        request=TemporaryReservationReleaseRequestSerializer,
+        responses={
+            200: TemporaryReservationReleaseResponseSerializer,
+            400: OpenApiResponse(description="Validation error."),
+            404: OpenApiResponse(description="Session not found."),
+            403: OpenApiResponse(description="Reservation ownership error."),
+            409: OpenApiResponse(
+                description="Reservation expired or invalid seat state."
+            ),
+            429: OpenApiResponse(description="Too many reservation attempts."),
+        },
+    ),
 )
 class TemporarySeatReservationView(GenericAPIView):
     permission_classes = [IsAuthenticated]
@@ -184,10 +211,36 @@ class TemporarySeatReservationView(GenericAPIView):
             "seats": reservation_result["seats"],
         }
 
-        response_serializer = TemporaryReservationResponseSerializer(
-            response_payload
-        )
+        response_serializer = TemporaryReservationResponseSerializer(response_payload)
         return Response(response_serializer.data, status=status.HTTP_201_CREATED)
+
+    def delete(self, request, *args, **kwargs):
+        serializer = TemporaryReservationReleaseRequestSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        service = TemporaryReservationReleaseService()
+
+        try:
+            release_result = service.execute(
+                session_id=self.kwargs["session_id"],
+                session_seat_ids=serializer.validated_data["session_seat_ids"],
+                user=request.user,
+            )
+        except SessionNotFoundError as exc:
+            raise NotFound(detail=str(exc)) from exc
+        except InvalidSessionSeatSelectionError as exc:
+            raise ValidationError(detail={"session_seat_ids": [str(exc)]}) from exc
+        except ReleaseReservationOwnershipError as exc:
+            raise PermissionDenied(detail=str(exc)) from exc
+        except ExpiredReservationReleaseError as exc:
+            raise SeatAlreadyReservedApiException(detail=str(exc)) from exc
+        except InvalidReservationReleaseStateError as exc:
+            raise SeatAlreadyReservedApiException(detail=str(exc)) from exc
+
+        response_serializer = TemporaryReservationReleaseResponseSerializer(
+            release_result
+        )
+        return Response(response_serializer.data, status=status.HTTP_200_OK)
 
 
 @extend_schema_view(
@@ -200,7 +253,9 @@ class TemporarySeatReservationView(GenericAPIView):
             200: CheckoutResponseSerializer,
             400: OpenApiResponse(description="Validation error."),
             403: OpenApiResponse(description="Reservation ownership error."),
-            409: OpenApiResponse(description="Reservation expired or invalid seat state."),
+            409: OpenApiResponse(
+                description="Reservation expired or invalid seat state."
+            ),
             429: OpenApiResponse(description="Too many checkout attempts."),
         },
     )

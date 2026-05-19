@@ -31,9 +31,9 @@ class SeatRowAdmin(admin.ModelAdmin):
 
 @admin.register(Seat)
 class SeatAdmin(admin.ModelAdmin):
-    list_display = ("id", "row", "room", "number")
+    list_display = ("id", "row", "room", "number", "is_accessible")
     search_fields = ("row__name", "row__room__name")
-    list_filter = ("row__room",)
+    list_filter = ("row__room", "is_accessible")
 
     @admin.display(ordering="row__room__name", description="Room")
     def room(self, obj):
