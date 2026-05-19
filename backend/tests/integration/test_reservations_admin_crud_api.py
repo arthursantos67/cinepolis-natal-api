@@ -21,7 +21,6 @@ from reservations.views import (
 )
 from users.models import User
 
-
 REST_FRAMEWORK_OVERRIDE = {
     "DEFAULT_AUTHENTICATION_CLASSES": [
         "rest_framework_simplejwt.authentication.JWTAuthentication",
@@ -245,11 +244,20 @@ def test_ticket_create_list_retrieve_delete_endpoints(api_client, room, session)
     assert create_response.status_code == status.HTTP_201_CREATED
     ticket_id = create_response.data["id"]
     assert create_response.data["ticket_code"]
+    assert create_response.data["ticket_type"] == "inteira"
+    assert create_response.data["amount_paid"] == "30.00"
+    assert create_response.data["payment_method"] == "pix"
+    assert create_response.data["movie"]["id"] == str(session.movie_id)
+    assert create_response.data["session"]["id"] == str(session.id)
+    assert create_response.data["room"]["id"] == str(room.id)
+    assert create_response.data["seat"]["identifier"] == "A1"
 
     retrieve_response = api_client.get(f"/api/v1/reservation/tickets/{ticket_id}/")
 
     assert retrieve_response.status_code == status.HTTP_200_OK
     assert retrieve_response.data["id"] == ticket_id
+    assert retrieve_response.data["ticket_type"] == "inteira"
+    assert retrieve_response.data["amount_paid"] == "30.00"
 
     list_response = api_client.get("/api/v1/reservation/tickets/")
 

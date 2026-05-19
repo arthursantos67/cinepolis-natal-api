@@ -247,33 +247,42 @@ class Ticket(models.Model):
         return base_price.quantize(Decimal("0.01"))
 
     def clean(self):
+        errors = {}
+
         if self.session_seat_id and self.user_id:
             if self.session_seat.status != SessionSeatStatus.PURCHASED:
-                raise ValidationError(
-                    {
-                        "session_seat": (
-                            "Tickets can only be created for purchased session seats."
-                        )
-                    }
+                errors["session_seat"] = (
+                    "Tickets can only be created for purchased session seats."
                 )
 
             if self.session_seat.locked_by_user is not None:
-                raise ValidationError(
-                    {
-                        "session_seat": (
-                            "Purchased session seats linked to tickets cannot keep a locked user."
-                        )
-                    }
+                errors["session_seat"] = (
+                    "Purchased session seats linked to tickets cannot keep a locked user."
                 )
 
             if self.session_seat.lock_expires_at is not None:
-                raise ValidationError(
-                    {
-                        "session_seat": (
-                            "Purchased session seats linked to tickets cannot keep a lock expiration."
-                        )
-                    }
+                errors["session_seat"] = (
+                    "Purchased session seats linked to tickets cannot keep a lock expiration."
                 )
+
+        if self.session_seat_id and self.ticket_type in TicketType.values:
+            expected_amount = self.calculate_amount(
+                self.session_seat.session.base_price,
+                self.ticket_type,
+            )
+
+            if self.amount_paid is None:
+                errors["amount_paid"] = "Ticket amount paid is required."
+            elif (
+                Decimal(self.amount_paid).quantize(Decimal("0.01"))
+                != expected_amount
+            ):
+                errors["amount_paid"] = (
+                    "Ticket amount paid must match the session price and ticket type."
+                )
+
+        if errors:
+            raise ValidationError(errors)
 
     def save(self, *args, **kwargs):
         if not self.ticket_code:

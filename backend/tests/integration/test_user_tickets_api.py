@@ -54,12 +54,12 @@ def test_should_return_only_authenticated_user_tickets():
         status=SessionSeatStatus.PURCHASED,
     )
 
-    Ticket.objects.create(
+    ticket = Ticket.objects.create(
         user=user1,
         session_seat=session_seat,
-        ticket_type="inteira",
-        amount_paid="30.00",
-        payment_method="pix",
+        ticket_type="meia",
+        amount_paid="15.00",
+        payment_method="cartao_credito",
     )
 
     # Ticket de outro usuário (não deve aparecer)
@@ -80,6 +80,31 @@ def test_should_return_only_authenticated_user_tickets():
 
     assert response.status_code == 200
     assert response.data["count"] == 1
+
+    ticket_payload = response.data["results"][0]
+    assert ticket_payload["ticket_id"] == str(ticket.id)
+    assert ticket_payload["ticket_code"] == ticket.ticket_code
+    assert ticket_payload["ticket_type"] == "meia"
+    assert ticket_payload["amount_paid"] == "15.00"
+    assert ticket_payload["payment_method"] == "cartao_credito"
+    assert ticket_payload["session"]["id"] == str(session.id)
+    assert ticket_payload["session"]["start_time"] is not None
+    assert ticket_payload["session"]["end_time"] is not None
+    assert ticket_payload["room"] == {
+        "id": str(room.id),
+        "name": room.name,
+    }
+    assert ticket_payload["movie"] == {
+        "id": str(movie.id),
+        "title": movie.title,
+        "poster_url": movie.poster_url,
+    }
+    assert ticket_payload["seat"] == {
+        "id": str(seat.id),
+        "row": row.name,
+        "number": seat.number,
+        "identifier": "A1",
+    }
 
 
 @pytest.mark.django_db
@@ -154,6 +179,11 @@ def test_should_return_only_upcoming_tickets():
 
     assert response.status_code == 200
     assert response.data["count"] == 1
+    ticket_payload = response.data["results"][0]
+    assert ticket_payload["session"]["id"] == str(future_session.id)
+    assert ticket_payload["room"]["name"] == room.name
+    assert ticket_payload["movie"]["poster_url"] == movie.poster_url
+    assert ticket_payload["seat"]["identifier"] == "A1"
 
 
 @pytest.mark.django_db
@@ -204,6 +234,11 @@ def test_should_return_only_past_tickets():
 
     assert response.status_code == 200
     assert response.data["count"] == 1
+    ticket_payload = response.data["results"][0]
+    assert ticket_payload["session"]["id"] == str(past_session.id)
+    assert ticket_payload["room"]["name"] == room.name
+    assert ticket_payload["movie"]["title"] == movie.title
+    assert ticket_payload["seat"]["identifier"] == "A1"
 
 
 @pytest.mark.django_db

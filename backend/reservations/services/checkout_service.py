@@ -55,7 +55,9 @@ class CheckoutService:
 
         session_seats = list(
             SessionSeat.objects.select_for_update()
-            .select_related("seat", "seat__row", "session")
+            .select_related(
+                "seat", "seat__row", "session", "session__movie", "session__room"
+            )
             .filter(id__in=ordered_session_seat_ids)
             .order_by("id")
         )
@@ -154,6 +156,28 @@ class CheckoutService:
                     "ticket_type": ticket.ticket_type,
                     "amount_paid": ticket.amount_paid,
                     "payment_method": ticket.payment_method,
+                    "movie": {
+                        "id": str(ticket.session_seat.session.movie_id),
+                        "title": ticket.session_seat.session.movie.title,
+                    },
+                    "session": {
+                        "id": str(ticket.session_seat.session_id),
+                        "start_time": ticket.session_seat.session.start_time,
+                        "end_time": ticket.session_seat.session.end_time,
+                    },
+                    "room": {
+                        "id": str(ticket.session_seat.session.room_id),
+                        "name": ticket.session_seat.session.room.name,
+                    },
+                    "seat": {
+                        "id": str(ticket.session_seat.seat_id),
+                        "row": ticket.session_seat.seat.row.name,
+                        "number": ticket.session_seat.seat.number,
+                        "identifier": (
+                            f"{ticket.session_seat.seat.row.name}"
+                            f"{ticket.session_seat.seat.number}"
+                        ),
+                    },
                 }
                 for ticket in tickets
             ],

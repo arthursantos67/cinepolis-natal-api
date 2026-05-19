@@ -68,6 +68,11 @@ class UserTicketSessionSerializer(serializers.Serializer):
     end_time = serializers.DateTimeField()
 
 
+class UserTicketRoomSerializer(serializers.Serializer):
+    id = serializers.UUIDField()
+    name = serializers.CharField()
+
+
 class UserTicketMovieSerializer(serializers.Serializer):
     id = serializers.UUIDField()
     title = serializers.CharField()
@@ -78,6 +83,7 @@ class UserTicketSeatSerializer(serializers.Serializer):
     id = serializers.UUIDField()
     row = serializers.CharField()
     number = serializers.IntegerField()
+    identifier = serializers.CharField()
 
 
 class UserTicketSerializer(serializers.ModelSerializer):
@@ -86,6 +92,7 @@ class UserTicketSerializer(serializers.ModelSerializer):
     created_at = serializers.DateTimeField()
 
     session = serializers.SerializerMethodField()
+    room = serializers.SerializerMethodField()
     movie = serializers.SerializerMethodField()
     seat = serializers.SerializerMethodField()
 
@@ -99,6 +106,7 @@ class UserTicketSerializer(serializers.ModelSerializer):
             "payment_method",
             "created_at",
             "session",
+            "room",
             "movie",
             "seat",
         )
@@ -110,6 +118,14 @@ class UserTicketSerializer(serializers.ModelSerializer):
             "id": str(session.id),
             "start_time": session.start_time,
             "end_time": session.end_time,
+        }
+
+    @extend_schema_field(UserTicketRoomSerializer)
+    def get_room(self, obj):
+        room = obj.session_seat.session.room
+        return {
+            "id": str(room.id),
+            "name": room.name,
         }
 
     @extend_schema_field(UserTicketMovieSerializer)
@@ -128,4 +144,5 @@ class UserTicketSerializer(serializers.ModelSerializer):
             "id": str(seat.id),
             "row": seat.row.name,
             "number": seat.number,
+            "identifier": f"{seat.row.name}{seat.number}",
         }

@@ -107,6 +107,8 @@ class TicketListCreateView(ListCreateAPIView):
         "user",
         "session_seat",
         "session_seat__session",
+        "session_seat__session__movie",
+        "session_seat__session__room",
         "session_seat__seat",
         "session_seat__seat__row",
     ).all()
@@ -120,6 +122,8 @@ class TicketDetailView(RetrieveDestroyAPIView):
         "user",
         "session_seat",
         "session_seat__session",
+        "session_seat__session__movie",
+        "session_seat__session__room",
         "session_seat__seat",
         "session_seat__seat__row",
     ).all()
