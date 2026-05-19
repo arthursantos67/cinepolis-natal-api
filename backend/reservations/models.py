@@ -217,7 +217,6 @@ class Ticket(models.Model):
     amount_paid = models.DecimalField(
         max_digits=8,
         decimal_places=2,
-        default=Decimal("0.00"),
     )
     payment_method = models.CharField(
         max_length=20,
@@ -279,11 +278,6 @@ class Ticket(models.Model):
     def save(self, *args, **kwargs):
         if not self.ticket_code:
             self.ticket_code = self.generate_ticket_code()
-        if self.session_seat_id and self.amount_paid == Decimal("0.00"):
-            self.amount_paid = self.calculate_amount(
-                self.session_seat.session.base_price,
-                self.ticket_type,
-            )
         self.full_clean()
         super().save(*args, **kwargs)
 

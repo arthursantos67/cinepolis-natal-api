@@ -5,8 +5,19 @@ import decimal
 from django.db import migrations, models
 
 
-class Migration(migrations.Migration):
+def backfill_legacy_ticket_purchase_data(apps, schema_editor):
+    Ticket = apps.get_model("reservations", "Ticket")
 
+    legacy_tickets = Ticket.objects.select_related(
+        "session_seat__session",
+    ).filter(amount_paid=decimal.Decimal("0.00"))
+
+    for ticket in legacy_tickets.iterator():
+        ticket.amount_paid = ticket.session_seat.session.base_price
+        ticket.save(update_fields=["amount_paid"])
+
+
+class Migration(migrations.Migration):
     dependencies = [
         ("reservations", "0005_seat_is_accessible"),
     ]
@@ -29,6 +40,7 @@ class Migration(migrations.Migration):
                 default=decimal.Decimal("0.00"),
                 max_digits=8,
             ),
+            preserve_default=False,
         ),
         migrations.AddField(
             model_name="ticket",
@@ -41,5 +53,9 @@ class Migration(migrations.Migration):
                 default="pix",
                 max_length=20,
             ),
+        ),
+        migrations.RunPython(
+            code=backfill_legacy_ticket_purchase_data,
+            reverse_code=migrations.RunPython.noop,
         ),
     ]

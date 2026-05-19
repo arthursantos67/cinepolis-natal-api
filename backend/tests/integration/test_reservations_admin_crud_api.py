@@ -133,9 +133,7 @@ def test_seat_row_create_retrieve_delete_endpoints(api_client, room):
     assert patch_response.status_code == status.HTTP_200_OK
     assert patch_response.data["name"] == "B"
 
-    delete_response = api_client.delete(
-        f"/api/v1/reservation/seat-rows/{seat_row_id}/"
-    )
+    delete_response = api_client.delete(f"/api/v1/reservation/seat-rows/{seat_row_id}/")
 
     assert delete_response.status_code == status.HTTP_204_NO_CONTENT
 
@@ -237,6 +235,9 @@ def test_ticket_create_list_retrieve_delete_endpoints(api_client, room, session)
         {
             "user": str(user.id),
             "session_seat": str(session_seat.id),
+            "ticket_type": "inteira",
+            "amount_paid": "30.00",
+            "payment_method": "pix",
         },
         format="json",
     )
@@ -263,8 +264,6 @@ def test_ticket_create_list_retrieve_delete_endpoints(api_client, room, session)
 
     assert patch_response.status_code == status.HTTP_405_METHOD_NOT_ALLOWED
 
-    delete_response = api_client.delete(
-        f"/api/v1/reservation/tickets/{ticket_id}/"
-    )
+    delete_response = api_client.delete(f"/api/v1/reservation/tickets/{ticket_id}/")
 
     assert delete_response.status_code == status.HTTP_204_NO_CONTENT
