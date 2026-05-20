@@ -31,7 +31,15 @@ urlpatterns = [
     ),
     path("tickets/", TicketListCreateView.as_view(), name="ticket-list-create"),
     path("tickets/<uuid:pk>/", TicketDetailView.as_view(), name="ticket-detail"),
-    path("sessions/<uuid:session_id>/seats/", SessionSeatMapView.as_view(), name="session-seat-map"),
-    path("sessions/<uuid:session_id>/reservations/", TemporarySeatReservationView.as_view(), name="temporary-seat-reservation"),
+    path(
+        "sessions/<uuid:session_id>/seats/",
+        SessionSeatMapView.as_view(),
+        name="session-seat-map",
+    ),
+    path(
+        "sessions/<uuid:session_id>/reservations/",
+        TemporarySeatReservationView.as_view(),
+        name="temporary-seat-reservation",
+    ),
     path("checkout/", CheckoutView.as_view(), name="checkout"),
 ]

@@ -32,9 +32,7 @@ class TemporaryReservationService:
     )
 
     def __init__(self):
-        self.lock_manager = SeatLockManager(
-            timeout_seconds=self.LOCK_DURATION_SECONDS
-        )
+        self.lock_manager = SeatLockManager(timeout_seconds=self.LOCK_DURATION_SECONDS)
 
     def execute(self, *, session_id, seat_ids, user):
         session_exists = Session.objects.filter(id=session_id).exists()
@@ -57,9 +55,7 @@ class TemporaryReservationService:
                 raise SeatUnavailableError(self.SEAT_UNAVAILABLE_MESSAGE)
 
         acquired_locks = []
-        expires_at = timezone.now() + timedelta(
-            seconds=self.LOCK_DURATION_SECONDS
-        )
+        expires_at = timezone.now() + timedelta(seconds=self.LOCK_DURATION_SECONDS)
 
         try:
             for session_seat in session_seats:
@@ -85,15 +81,11 @@ class TemporaryReservationService:
                 )
 
                 if len(locked_session_seats) != len(ordered_seat_ids):
-                    raise InvalidSeatSelectionError(
-                        self.INVALID_SELECTION_MESSAGE
-                    )
+                    raise InvalidSeatSelectionError(self.INVALID_SELECTION_MESSAGE)
 
                 for session_seat in locked_session_seats:
                     if session_seat.status != SessionSeatStatus.AVAILABLE:
-                        raise SeatUnavailableError(
-                            self.SEAT_UNAVAILABLE_MESSAGE
-                        )
+                        raise SeatUnavailableError(self.SEAT_UNAVAILABLE_MESSAGE)
 
                 for session_seat in locked_session_seats:
                     session_seat.status = SessionSeatStatus.RESERVED
@@ -106,8 +98,7 @@ class TemporaryReservationService:
                 )
 
                 reserved_session_seat_ids = [
-                    str(session_seat.id)
-                    for session_seat in locked_session_seats
+                    str(session_seat.id) for session_seat in locked_session_seats
                 ]
 
                 transaction.on_commit(

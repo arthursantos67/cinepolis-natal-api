@@ -9,7 +9,6 @@ from .logging_context import (
     set_execution_context,
 )
 
-
 logger = logging.getLogger("cinepolis.observability")
 _task_context_tokens = {}
 
@@ -56,7 +55,15 @@ def on_task_postrun(task_id=None, task=None, state=None, *args, **kwargs):
 
 
 @task_failure.connect
-def on_task_failure(task_id=None, exception=None, traceback=None, sender=None, einfo=None, *args, **kwargs):
+def on_task_failure(
+    task_id=None,
+    exception=None,
+    traceback=None,
+    sender=None,
+    einfo=None,
+    *args,
+    **kwargs
+):
     logger.exception(
         "Celery task failed",
         exc_info=(type(exception), exception, traceback) if exception else None,

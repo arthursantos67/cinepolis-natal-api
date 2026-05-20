@@ -6,10 +6,11 @@ from drf_spectacular.utils import (
     extend_schema_view,
 )
 from rest_framework import status
+from rest_framework import serializers
+from rest_framework.exceptions import ValidationError
 from rest_framework.generics import CreateAPIView, ListAPIView
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
-from rest_framework import serializers
 from rest_framework.views import APIView
 from rest_framework_simplejwt.serializers import TokenRefreshSerializer
 from rest_framework_simplejwt.tokens import RefreshToken
@@ -151,6 +152,21 @@ class CurrentUserView(APIView):
 class MyTicketsView(ListAPIView):
     permission_classes = [IsAuthenticated]
     serializer_class = UserTicketSerializer
+    ALLOWED_TYPE_FILTERS = {"upcoming", "past"}
+
+    def _get_validated_type_filter(self):
+        ticket_type = self.request.query_params.get("type")
+
+        if ticket_type is None or ticket_type in self.ALLOWED_TYPE_FILTERS:
+            return ticket_type
+
+        raise ValidationError(
+            {
+                "type": [
+                    "Invalid type filter. Expected one of: upcoming, past.",
+                ]
+            }
+        )
 
     def get_queryset(self):
         queryset = (
@@ -163,7 +179,7 @@ class MyTicketsView(ListAPIView):
             .order_by("-created_at")
         )
 
-        ticket_type = self.request.query_params.get("type")
+        ticket_type = self._get_validated_type_filter()
         now = timezone.now()
 
         if ticket_type == "upcoming":

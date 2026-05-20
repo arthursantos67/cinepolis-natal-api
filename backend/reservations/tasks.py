@@ -14,7 +14,6 @@ from reservations.services.ticket_confirmation_email_service import (
     build_ticket_confirmation_email,
 )
 
-
 logger = logging.getLogger(__name__)
 
 
@@ -31,7 +30,9 @@ def release_expired_session_seat(session_seat_id: str) -> None:
     retry_jitter=True,
     max_retries=5,
 )
-def send_ticket_confirmation_email_task(self, user_id: str, ticket_ids: list[str]) -> None:
+def send_ticket_confirmation_email_task(
+    self, user_id: str, ticket_ids: list[str]
+) -> None:
     normalized_ticket_ids = sorted({str(ticket_id) for ticket_id in ticket_ids})
     if not normalized_ticket_ids:
         logger.warning(

@@ -2,11 +2,14 @@ from django.contrib import admin
 from django.urls import include, path
 from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView
 
-from .views import health_check
+from .views import deep_health_check, health_check, liveness_check, readiness_check
 
 urlpatterns = [
     path("admin/", admin.site.urls),
     path("health/", health_check, name="health-check"),
+    path("health/live/", liveness_check, name="health-live"),
+    path("health/ready/", readiness_check, name="health-ready"),
+    path("health/deep/", deep_health_check, name="health-deep"),
     path("api/schema/", SpectacularAPIView.as_view(), name="api-schema"),
     path(
         "api/docs/",

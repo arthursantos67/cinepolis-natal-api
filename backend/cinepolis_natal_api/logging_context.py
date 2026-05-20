@@ -1,6 +1,5 @@
 from contextvars import ContextVar
 
-
 _correlation_id = ContextVar("correlation_id", default=None)
 _execution_context = ContextVar("execution_context", default="api")
 

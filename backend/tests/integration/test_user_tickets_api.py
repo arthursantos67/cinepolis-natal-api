@@ -3,6 +3,7 @@ from datetime import timedelta
 
 from django.contrib.auth import get_user_model
 from django.utils import timezone
+from rest_framework import status
 from rest_framework.test import APIClient
 
 from catalog.models import Movie, Room, Session
@@ -239,6 +240,28 @@ def test_should_return_only_past_tickets():
     assert ticket_payload["room"]["name"] == room.name
     assert ticket_payload["movie"]["title"] == movie.title
     assert ticket_payload["seat"]["identifier"] == "A1"
+
+
+@pytest.mark.django_db
+def test_should_reject_invalid_ticket_type_filter_with_standard_error():
+    user = get_user_model().objects.create_user(
+        email="user@test.com",
+        username="user",
+        password="123456",
+    )
+
+    client = APIClient()
+    client.force_authenticate(user=user)
+
+    response = client.get("/api/v1/users/me/tickets/?type=archived")
+
+    assert response.status_code == status.HTTP_400_BAD_REQUEST
+    assert response.data["error"]["code"] == "VALIDATION_FAILED"
+    assert response.data["error"]["message"] == "Validation failed."
+    assert response.data["error"]["status"] == status.HTTP_400_BAD_REQUEST
+    assert response.data["error"]["details"] == {
+        "type": ["Invalid type filter. Expected one of: upcoming, past."]
+    }
 
 
 @pytest.mark.django_db

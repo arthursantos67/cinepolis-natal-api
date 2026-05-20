@@ -8,7 +8,6 @@ from .logging_context import (
     set_execution_context,
 )
 
-
 CORRELATION_ID_HEADER = "X-Correlation-ID"
 
 logger = logging.getLogger("cinepolis.observability")

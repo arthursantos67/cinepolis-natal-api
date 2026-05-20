@@ -51,7 +51,7 @@ The table below maps implemented requirements to concrete endpoints/components.
 | Rate limiting | Global + login + reservation throttles | `cinepolis_natal_api.throttling` + DRF settings |
 | Redis cache | Caching for movies/sessions list endpoints + invalidation on create/update/delete | `catalog.views.MovieListCreateView` / `SessionListCreateView` |
 | Async jobs | Expiration release + ticket email notification | `reservations.tasks` + Celery worker |
-| Health check | DB/Redis/Celery health status | `GET /health/` |
+| Health check | Liveness, readiness, and deep dependency health status | `GET /health/live/`, `GET /health/ready/`, `GET /health/deep/` |
 | API docs | OpenAPI schema + Swagger UI | `/api/schema/`, `/api/docs/` |
 
 ### Use Cases (1–7)
@@ -106,6 +106,19 @@ The table below maps implemented requirements to concrete endpoints/components.
 - A centralized DRF exception handler returns a consistent `error` envelope.
 - Handles validation/auth/permission/not-found/conflict/throttle/internal errors consistently.
 - Internal exceptions are logged with contextual metadata while returning sanitized 500 responses.
+
+### Health check policy
+
+- `GET /health/live/`: process liveness only. Returns 200 when the HTTP process can respond.
+- `GET /health/ready/`: readiness for core API dependencies. Checks database and Redis and returns 503 if either is unavailable.
+- `GET /health/deep/`: full dependency status for database, Redis, and Celery worker inspection. Returns 503 when any deep dependency is unavailable.
+- `GET /health/`: compatibility alias for readiness. Celery inspect failures do not make the HTTP API unavailable unless callers explicitly use `/health/deep/`.
+
+### Throttling policy
+
+- Global anonymous and authenticated request throttles use DRF's default IP/user behavior.
+- Login throttling uses the client IP plus a SHA-256 fingerprint of the normalized submitted email. This keeps responses independent of account existence, avoids storing raw emails in cache keys, and prevents one attempted email from consuming the whole IP login budget.
+- Reservation throttling uses the authenticated user id for authenticated reservation and checkout requests. Anonymous reservation attempts fall back to client IP, although reservation endpoints still require authentication.
 
 ### Scalability considerations already implemented
 

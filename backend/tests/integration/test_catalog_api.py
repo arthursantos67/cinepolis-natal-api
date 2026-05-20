@@ -785,6 +785,41 @@ class TestCatalogApi:
         assert second_response.status_code == status.HTTP_200_OK
         assert second_response.data["count"] == initial_count + 1
 
+    def test_movie_list_cache_invalidation_uses_namespace_versioning(
+        self,
+        api_client,
+        genre,
+        second_genre,
+    ):
+        cache.clear()
+
+        first_response = api_client.get("/api/v1/catalog/movies/")
+        initial_version = cache.get("catalog:movies:version")
+        old_cache_key = f"catalog:movies:v{initial_version}:/api/v1/catalog/movies/"
+        assert cache.get(old_cache_key) == first_response.data
+
+        create_response = api_client.post(
+            "/api/v1/catalog/movies/",
+            {
+                "title": "Interstellar",
+                "genres": [str(genre.id), str(second_genre.id)],
+                "synopsis": "Space exploration.",
+                "duration_minutes": 169,
+                "release_date": "2014-11-07",
+                "poster_url": "https://example.com/interstellar.jpg",
+            },
+            format="json",
+        )
+
+        assert create_response.status_code == status.HTTP_201_CREATED
+        assert cache.get("catalog:movies:version") == initial_version + 1
+
+        second_response = api_client.get("/api/v1/catalog/movies/")
+
+        assert second_response.status_code == status.HTTP_200_OK
+        assert second_response.data["count"] == first_response.data["count"] + 1
+        assert cache.get(old_cache_key) == first_response.data
+
     def test_session_list_cache_should_be_invalidated_after_session_creation(
         self,
         api_client,
@@ -813,6 +848,40 @@ class TestCatalogApi:
         second_response = api_client.get("/api/v1/catalog/sessions/")
         assert second_response.status_code == status.HTTP_200_OK
         assert second_response.data["count"] == initial_count + 1
+
+    def test_session_list_cache_invalidation_uses_namespace_versioning(
+        self,
+        api_client,
+        movie,
+        room,
+    ):
+        cache.clear()
+
+        first_response = api_client.get("/api/v1/catalog/sessions/")
+        initial_version = cache.get("catalog:sessions:version")
+        old_cache_key = f"catalog:sessions:v{initial_version}:/api/v1/catalog/sessions/"
+        assert cache.get(old_cache_key) == first_response.data
+
+        create_response = api_client.post(
+            "/api/v1/catalog/sessions/",
+            {
+                "movie": str(movie.id),
+                "room": str(room.id),
+                "start_time": "2026-03-23T18:00:00Z",
+                "end_time": "2026-03-23T20:55:00Z",
+                "base_price": "30.00",
+            },
+            format="json",
+        )
+
+        assert create_response.status_code == status.HTTP_201_CREATED
+        assert cache.get("catalog:sessions:version") == initial_version + 1
+
+        second_response = api_client.get("/api/v1/catalog/sessions/")
+
+        assert second_response.status_code == status.HTTP_200_OK
+        assert second_response.data["count"] == first_response.data["count"] + 1
+        assert cache.get(old_cache_key) == first_response.data
 
     def test_movie_list_cache_should_be_invalidated_after_movie_deletion(
         self,

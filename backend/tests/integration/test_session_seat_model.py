@@ -178,8 +178,8 @@ def test_session_seat_must_belong_to_same_room_as_session():
 
     with pytest.raises(ValidationError):
         SessionSeat.objects.create(session=session, seat=seat)
-     
-   
+
+
 @pytest.mark.django_db
 def test_session_seat_string_representation():
     room = Room.objects.create(name="Room 1", capacity=100)

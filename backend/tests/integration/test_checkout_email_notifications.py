@@ -57,9 +57,9 @@ def _build_checkout_context(*, seat_numbers=(1, 2), reserved=True):
                 SessionSeatStatus.RESERVED if reserved else SessionSeatStatus.AVAILABLE
             ),
             locked_by_user=user if reserved else None,
-            lock_expires_at=(timezone.now() + timedelta(minutes=10))
-            if reserved
-            else None,
+            lock_expires_at=(
+                (timezone.now() + timedelta(minutes=10)) if reserved else None
+            ),
         )
         session_seats.append(session_seat)
 

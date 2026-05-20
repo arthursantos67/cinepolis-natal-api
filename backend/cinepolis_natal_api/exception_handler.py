@@ -13,7 +13,6 @@ from rest_framework.exceptions import (
 from rest_framework.response import Response
 from rest_framework.views import exception_handler as drf_exception_handler
 
-
 logger = logging.getLogger("cinepolis.api.errors")
 
 
@@ -149,9 +148,7 @@ def _build_details(error_code, normalized_data, exc):
         return {}
 
     if isinstance(normalized_data, dict):
-        return {
-            key: value for key, value in normalized_data.items() if key != "detail"
-        }
+        return {key: value for key, value in normalized_data.items() if key != "detail"}
 
     return {}
 

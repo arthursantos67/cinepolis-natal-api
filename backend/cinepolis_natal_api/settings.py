@@ -2,7 +2,6 @@ from datetime import timedelta
 import os
 from pathlib import Path
 
-
 # -------------------------------------------------------------------
 # Paths
 # -------------------------------------------------------------------
@@ -211,9 +210,7 @@ EMAIL_HOST_PASSWORD = os.getenv("EMAIL_HOST_PASSWORD", "")
 EMAIL_USE_TLS = os.getenv("EMAIL_USE_TLS", "True") == "True"
 EMAIL_USE_SSL = os.getenv("EMAIL_USE_SSL", "False") == "True"
 EMAIL_TIMEOUT = int(os.getenv("EMAIL_TIMEOUT", "10"))
-DEFAULT_FROM_EMAIL = os.getenv(
-    "DEFAULT_FROM_EMAIL", "no-reply@cinepolisnatal.local"
-)
+DEFAULT_FROM_EMAIL = os.getenv("DEFAULT_FROM_EMAIL", "no-reply@cinepolisnatal.local")
 TICKET_CONFIRMATION_EMAIL_SENT_TTL_SECONDS = int(
     os.getenv("TICKET_CONFIRMATION_EMAIL_SENT_TTL_SECONDS", "604800")
 )
@@ -252,9 +249,18 @@ SPECTACULAR_SETTINGS = {
     "SERVE_INCLUDE_SCHEMA": False,
     "TAGS": [
         {"name": "Auth", "description": "Authentication and token issuance endpoints."},
-        {"name": "Catalog", "description": "Movie catalog, genres, rooms, and sessions endpoints."},
-        {"name": "Reservations", "description": "Seat map, temporary reservation, and checkout endpoints."},
-        {"name": "Users", "description": "Authenticated user profile and ticket endpoints."},
+        {
+            "name": "Catalog",
+            "description": "Movie catalog, genres, rooms, and sessions endpoints.",
+        },
+        {
+            "name": "Reservations",
+            "description": "Seat map, temporary reservation, and checkout endpoints.",
+        },
+        {
+            "name": "Users",
+            "description": "Authenticated user profile and ticket endpoints.",
+        },
     ],
     "APPEND_COMPONENTS": {
         "securitySchemes": {

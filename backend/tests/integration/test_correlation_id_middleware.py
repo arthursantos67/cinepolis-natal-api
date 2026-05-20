@@ -9,7 +9,9 @@ class TestCorrelationIdMiddleware:
     def api_client(self):
         return APIClient()
 
-    def test_generates_correlation_id_when_header_is_missing(self, api_client, monkeypatch):
+    def test_generates_correlation_id_when_header_is_missing(
+        self, api_client, monkeypatch
+    ):
         monkeypatch.setattr(
             "cinepolis_natal_api.health.HealthCheckService._check_database",
             lambda self: "ok",

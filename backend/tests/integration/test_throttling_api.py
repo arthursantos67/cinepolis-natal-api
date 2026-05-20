@@ -1,14 +1,17 @@
 import pytest
-from django.contrib.auth import get_user_model
 from django.conf import settings
+from django.contrib.auth import get_user_model
+from django.contrib.auth.models import AnonymousUser
 from django.core.cache import cache
 from django.test import override_settings
 from django.utils import timezone
-from rest_framework.throttling import SimpleRateThrottle
 from rest_framework import status
+from rest_framework.parsers import JSONParser
+from rest_framework.request import Request
 from rest_framework.test import APIClient
+from rest_framework.test import APIRequestFactory
+from rest_framework.throttling import SimpleRateThrottle
 from rest_framework_simplejwt.tokens import RefreshToken
-
 
 User = get_user_model()
 
@@ -38,7 +41,10 @@ def isolate_throttling_state():
     original_checkout_throttles = CheckoutView.throttle_classes
     original_simple_rate_throttle_rates = SimpleRateThrottle.THROTTLE_RATES
 
-    GenreListCreateView.throttle_classes = [GlobalAnonRateThrottle, GlobalUserRateThrottle]
+    GenreListCreateView.throttle_classes = [
+        GlobalAnonRateThrottle,
+        GlobalUserRateThrottle,
+    ]
     UserLoginView.throttle_classes = [LoginRateThrottle]
     TemporarySeatReservationView.throttle_classes = [ReservationRateThrottle]
     CheckoutView.throttle_classes = [ReservationRateThrottle]
@@ -148,7 +154,9 @@ class TestApiThrottling:
             "EXCEPTION_HANDLER": "cinepolis_natal_api.throttling.throttling_exception_handler",
         }
     )
-    def test_global_anonymous_throttling_blocks_after_limit(self, api_client, monkeypatch):
+    def test_global_anonymous_throttling_blocks_after_limit(
+        self, api_client, monkeypatch
+    ):
         _sync_throttle_rates_from_settings()
 
         first_response = api_client.get("/api/v1/catalog/genres/")
@@ -265,3 +273,79 @@ class TestApiThrottling:
         assert body["error"]["code"] == "THROTTLED"
         assert body["error"]["status"] == 429
         assert "Request limit exceeded" in body["error"]["message"]
+
+    def test_login_throttle_key_combines_ip_with_normalized_email(self):
+        from cinepolis_natal_api.throttling import LoginRateThrottle
+
+        factory = APIRequestFactory()
+        throttle = LoginRateThrottle()
+        first_request = Request(
+            factory.post(
+                "/api/v1/auth/login/",
+                {"email": "USER@Example.COM", "password": "wrong-password"},
+                format="json",
+                REMOTE_ADDR="198.51.100.10",
+            ),
+            parsers=[JSONParser()],
+        )
+        second_request = Request(
+            factory.post(
+                "/api/v1/auth/login/",
+                {"email": "user@example.com", "password": "wrong-password"},
+                format="json",
+                REMOTE_ADDR="198.51.100.10",
+            ),
+            parsers=[JSONParser()],
+        )
+        other_email_request = Request(
+            factory.post(
+                "/api/v1/auth/login/",
+                {"email": "other@example.com", "password": "wrong-password"},
+                format="json",
+                REMOTE_ADDR="198.51.100.10",
+            ),
+            parsers=[JSONParser()],
+        )
+
+        first_key = throttle.get_cache_key(first_request, view=None)
+        second_key = throttle.get_cache_key(second_request, view=None)
+        other_email_key = throttle.get_cache_key(other_email_request, view=None)
+
+        assert first_key == second_key
+        assert first_key != other_email_key
+        assert "user@example.com" not in first_key
+
+    def test_reservation_throttle_key_uses_authenticated_user(self, user):
+        from cinepolis_natal_api.throttling import ReservationRateThrottle
+
+        factory = APIRequestFactory()
+        throttle = ReservationRateThrottle()
+        request = factory.post(
+            "/api/v1/reservation/sessions/session-id/reservations/",
+            {"seat_ids": ["seat-id"]},
+            format="json",
+            REMOTE_ADDR="198.51.100.10",
+        )
+        request.user = user
+
+        key = throttle.get_cache_key(request, view=None)
+
+        assert key == f"throttle_reservation_user:{user.pk}"
+        assert "198.51.100.10" not in key
+
+    def test_reservation_throttle_key_falls_back_to_ip_for_anonymous_requests(self):
+        from cinepolis_natal_api.throttling import ReservationRateThrottle
+
+        factory = APIRequestFactory()
+        throttle = ReservationRateThrottle()
+        request = factory.post(
+            "/api/v1/reservation/sessions/session-id/reservations/",
+            {"seat_ids": ["seat-id"]},
+            format="json",
+            REMOTE_ADDR="198.51.100.10",
+        )
+        request.user = AnonymousUser()
+
+        key = throttle.get_cache_key(request, view=None)
+
+        assert key == "throttle_reservation_ip:198.51.100.10"
