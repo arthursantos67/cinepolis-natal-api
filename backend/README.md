@@ -40,7 +40,7 @@ The table below maps implemented requirements to concrete endpoints/components.
 | User registration | Register with email, username, password | `POST /api/v1/auth/register/` (`users.views.UserRegistrationView`) |
 | JWT login | Login returns access + refresh tokens | `POST /api/v1/auth/login/` (`users.views.UserLoginView`) |
 | JWT refresh | Refresh token returns a new access token | `POST /api/v1/auth/token/refresh/` (`users.views.UserTokenRefreshView`) |
-| Current user profile | Returns authenticated user identity | `GET /api/v1/auth/me/` and `GET /api/v1/users/me/` |
+| Current user profile | Returns authenticated user identity | `GET /api/v1/users/me/` |
 | Public catalog | Public list/retrieve for genres, movies, rooms, sessions; admin-only catalog mutations | `catalog.views.*` under `/api/v1/catalog/*` |
 | Reservation admin entities | Admin-only full CRUD for seat rows and seats; admin-only list/create/retrieve/delete for session seats; admin-only list/retrieve/delete for tickets | `reservations.views.*` under `/api/v1/reservation/*` |
 | Session seat map | Public seat status (`AVAILABLE`, `RESERVED`, `PURCHASED`) | `GET /api/v1/reservation/sessions/{session_id}/seats/` |
@@ -293,6 +293,7 @@ session = Session.objects.create(
 	room=room,
 	start_time=timezone.now() + timedelta(hours=2),
 	end_time=timezone.now() + timedelta(hours=5),
+	base_price="30.00",
 )
 
 SessionSeat.objects.create(session=session, seat=seat_1)
@@ -464,7 +465,6 @@ Expected: `200 OK` paginated ticket list. Optional filters:
 | `POST` | `{{BASE_URL}}/api/v1/auth/register/` | No | `{"email":"dev1@example.com","username":"dev1","password":"StrongPass123!"}` |
 | `POST` | `{{BASE_URL}}/api/v1/auth/login/` | No | `{"email":"dev1@example.com","password":"StrongPass123!"}` |
 | `POST` | `{{BASE_URL}}/api/v1/auth/token/refresh/` | No | `{"refresh":"<jwt-refresh-token>"}` |
-| `GET` | `{{BASE_URL}}/api/v1/auth/me/` | Bearer | none |
 | `GET` | `{{BASE_URL}}/api/v1/users/me/` | Bearer | none |
 | `GET` | `{{BASE_URL}}/api/v1/users/me/tickets/` | Bearer | none |
 | `GET` | `{{BASE_URL}}/api/v1/users/me/tickets/?type=upcoming` | Bearer | none |
@@ -500,6 +500,9 @@ Notes:
 - Updating a `Genre` is useful when it is already linked to multiple movies.
 - Updating a `Session` is supported, but changing its `room` after creation is rejected to avoid inconsistency with existing `SessionSeat` records.
 - Creating a `Session` through the API creates its `SessionSeat` records automatically from the seats already registered for that room.
+- `Room.capacity` is the maximum allowed layout size: registered seats cannot exceed it, and it cannot be reduced below the registered seat count.
+- Seat rows and seats cannot be created, updated, or deleted for a room that already has future sessions.
+- A session with reserved or purchased seats cannot change `movie`, `room`, `start_time`, `end_time`, or `base_price`.
 
 ### Reservation routes
 

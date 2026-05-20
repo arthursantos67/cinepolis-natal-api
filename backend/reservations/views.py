@@ -34,6 +34,7 @@ from reservations.serializers import (
     TemporaryReservationReleaseResponseSerializer,
     TemporaryReservationRequestSerializer,
     TemporaryReservationResponseSerializer,
+    validate_room_layout_changes_are_allowed,
 )
 from reservations.services import (
     TemporaryReservationReleaseService,
@@ -68,6 +69,10 @@ class SeatRowDetailView(RetrieveUpdateDestroyAPIView):
     serializer_class = SeatRowSerializer
     permission_classes = [IsAdminUser]
 
+    def perform_destroy(self, instance):
+        validate_room_layout_changes_are_allowed({instance.room_id})
+        instance.delete()
+
 
 @extend_schema(tags=["Reservations"], summary="List or create seats")
 class SeatListCreateView(ListCreateAPIView):
@@ -81,6 +86,10 @@ class SeatDetailView(RetrieveUpdateDestroyAPIView):
     queryset = Seat.objects.select_related("row", "row__room").all()
     serializer_class = SeatSerializer
     permission_classes = [IsAdminUser]
+
+    def perform_destroy(self, instance):
+        validate_room_layout_changes_are_allowed({instance.row.room_id})
+        instance.delete()
 
 
 @extend_schema(tags=["Reservations"], summary="List or create session seats")

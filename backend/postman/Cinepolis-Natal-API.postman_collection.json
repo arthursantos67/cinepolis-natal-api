@@ -121,36 +121,6 @@
           }
         },
         {
-          "name": "Auth Me",
-          "request": {
-            "auth": {
-              "type": "bearer",
-              "bearer": [
-                {
-                  "key": "token",
-                  "value": "{{ACCESS_TOKEN}}",
-                  "type": "string"
-                }
-              ]
-            },
-            "method": "GET",
-            "header": [],
-            "url": {
-              "raw": "{{BASE_URL}}/api/v1/auth/me/",
-              "host": [
-                "{{BASE_URL}}"
-              ],
-              "path": [
-                "api",
-                "v1",
-                "auth",
-                "me",
-                ""
-              ]
-            }
-          }
-        },
-        {
           "name": "Users Me",
           "request": {
             "auth": {

@@ -6,7 +6,6 @@ from rest_framework.test import APIClient
 
 from users.models import User
 
-
 _ip_counter = count(1)
 
 
@@ -65,7 +64,7 @@ class TestUserLoginView:
         api_client.credentials(
             HTTP_AUTHORIZATION=f"Bearer {refresh_response.data['access']}"
         )
-        current_user_response = api_client.get("/api/v1/auth/me/")
+        current_user_response = api_client.get("/api/v1/users/me/")
 
         assert current_user_response.status_code == status.HTTP_200_OK
         assert current_user_response.data["id"] == str(user.id)
