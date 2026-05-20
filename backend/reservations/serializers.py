@@ -1,5 +1,7 @@
+from django.utils import timezone
 from rest_framework import serializers
 
+from catalog.models import Session
 from reservations.exceptions import (
     InvalidPaymentMethodApiException,
     InvalidTicketTypeApiException,
@@ -15,11 +17,41 @@ from reservations.models import (
 )
 
 
+def validate_room_layout_changes_are_allowed(room_ids):
+    room_ids = {room_id for room_id in room_ids if room_id is not None}
+
+    if Session.objects.filter(
+        room_id__in=room_ids,
+        start_time__gte=timezone.now(),
+    ).exists():
+        raise serializers.ValidationError(
+            {
+                "room": (
+                    "Room seat layout cannot be changed while future sessions exist."
+                )
+            }
+        )
+
+
 class SeatRowSerializer(serializers.ModelSerializer):
     class Meta:
         model = SeatRow
         fields = ["id", "room", "name"]
         read_only_fields = ["id"]
+
+    def validate(self, attrs):
+        attrs = super().validate(attrs)
+
+        room = attrs.get("room", getattr(self.instance, "room", None))
+        if room is None:
+            return attrs
+
+        room_ids = {room.id}
+        if self.instance is not None:
+            room_ids.add(self.instance.room_id)
+
+        validate_room_layout_changes_are_allowed(room_ids)
+        return attrs
 
 
 class SeatSerializer(serializers.ModelSerializer):
@@ -27,6 +59,31 @@ class SeatSerializer(serializers.ModelSerializer):
         model = Seat
         fields = ["id", "row", "number", "is_accessible"]
         read_only_fields = ["id"]
+
+    def validate(self, attrs):
+        attrs = super().validate(attrs)
+
+        row = attrs.get("row", getattr(self.instance, "row", None))
+        if row is None:
+            return attrs
+
+        room_ids = {row.room_id}
+
+        if self.instance is not None:
+            room_ids.add(self.instance.row.room_id)
+
+        validate_room_layout_changes_are_allowed(room_ids)
+
+        seats_in_room = Seat.objects.filter(row__room=row.room)
+        if self.instance is not None:
+            seats_in_room = seats_in_room.exclude(pk=self.instance.pk)
+
+        if seats_in_room.count() >= row.room.capacity:
+            raise serializers.ValidationError(
+                {"row": ("Room capacity cannot be exceeded by adding another seat.")}
+            )
+
+        return attrs
 
 
 class SessionSeatSerializer(serializers.ModelSerializer):

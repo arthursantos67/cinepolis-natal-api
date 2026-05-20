@@ -75,6 +75,19 @@ class Seat(models.Model):
         if self.number <= 0:
             raise ValidationError({"number": "Seat number must be greater than zero."})
 
+        if not self.row_id:
+            return
+
+        room = self.row.room
+        existing_seats = Seat.objects.filter(row__room=room)
+        if self.pk:
+            existing_seats = existing_seats.exclude(pk=self.pk)
+
+        if existing_seats.count() >= room.capacity:
+            raise ValidationError(
+                {"row": ("Room capacity cannot be exceeded by adding another seat.")}
+            )
+
     def save(self, *args, **kwargs):
         self.full_clean()
         super().save(*args, **kwargs)
@@ -273,10 +286,7 @@ class Ticket(models.Model):
 
             if self.amount_paid is None:
                 errors["amount_paid"] = "Ticket amount paid is required."
-            elif (
-                Decimal(self.amount_paid).quantize(Decimal("0.01"))
-                != expected_amount
-            ):
+            elif Decimal(self.amount_paid).quantize(Decimal("0.01")) != expected_amount:
                 errors["amount_paid"] = (
                     "Ticket amount paid must match the session price and ticket type."
                 )
