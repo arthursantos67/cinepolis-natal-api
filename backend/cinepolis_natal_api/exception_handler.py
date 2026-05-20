@@ -62,7 +62,12 @@ def _map_error_code(exc, response_status):
         return "VALIDATION_FAILED"
 
     if isinstance(exc, AuthenticationFailed):
-        return "INVALID_CREDENTIALS"
+        detail_message = _extract_detail_message(
+            _to_primitive(getattr(exc, "detail", None))
+        )
+        if detail_message in {"Invalid credentials.", "User account is disabled."}:
+            return "INVALID_CREDENTIALS"
+        return "NOT_AUTHENTICATED"
 
     if isinstance(exc, NotAuthenticated):
         return "NOT_AUTHENTICATED"

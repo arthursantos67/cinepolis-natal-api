@@ -11,7 +11,9 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework import serializers
 from rest_framework.views import APIView
+from rest_framework_simplejwt.serializers import TokenRefreshSerializer
 from rest_framework_simplejwt.tokens import RefreshToken
+from rest_framework_simplejwt.views import TokenRefreshView
 
 from cinepolis_natal_api.throttling import LoginRateThrottle
 from reservations.models import Ticket
@@ -25,6 +27,10 @@ from users.serializers import (
 class UserLoginResponseSerializer(serializers.Serializer):
     access = serializers.CharField()
     refresh = serializers.CharField()
+
+
+class TokenRefreshResponseSerializer(serializers.Serializer):
+    access = serializers.CharField()
 
 
 class CurrentUserResponseSerializer(serializers.Serializer):
@@ -85,6 +91,22 @@ class UserLoginView(APIView):
             },
             status=status.HTTP_200_OK,
         )
+
+
+@extend_schema_view(
+    post=extend_schema(
+        tags=["Auth"],
+        summary="Refresh access token",
+        description="Issue a new JWT access token from a valid refresh token.",
+        request=TokenRefreshSerializer,
+        responses={
+            200: TokenRefreshResponseSerializer,
+            401: OpenApiResponse(description="Invalid or expired refresh token."),
+        },
+    )
+)
+class UserTokenRefreshView(TokenRefreshView):
+    permission_classes = [AllowAny]
 
 
 @extend_schema_view(

@@ -367,22 +367,60 @@ The frontend shall provide registration and login forms. On successful login, JW
 
 ## 9. API Contract and Error Standard
 
-### 9.1 Base Endpoints
+### 9.1 API Endpoints
 
-```
-GET  /health/
-GET  /api/schema/
-GET  /api/docs/
-POST /api/v1/auth/register/
-POST /api/v1/auth/login/
-GET  /api/v1/auth/me/
-GET  /api/v1/users/me/
-GET  /api/v1/users/me/tickets/
-GET/POST/DELETE /api/v1/catalog/...
-GET  /api/v1/reservation/sessions/{session_id}/seats/
-POST /api/v1/reservation/sessions/{session_id}/reservations/
-POST /api/v1/reservation/checkout/
-```
+Support and documentation:
+
+| Method | Endpoint | Description |
+|---|---|---|
+| `GET` | `/health/` | Health check for database, Redis, and Celery connectivity |
+| `GET` | `/api/schema/` | OpenAPI schema |
+| `GET` | `/api/docs/` | Swagger UI |
+
+Authentication and user endpoints:
+
+| Method | Endpoint | Description |
+|---|---|---|
+| `POST` | `/api/v1/auth/register/` | Register a user |
+| `POST` | `/api/v1/auth/login/` | Authenticate and issue access and refresh tokens |
+| `POST` | `/api/v1/auth/token/refresh/` | Refresh an access token from a valid refresh token |
+| `GET` | `/api/v1/auth/me/` | Return current authenticated user profile |
+| `GET` | `/api/v1/users/me/` | Return current authenticated user profile |
+| `GET` | `/api/v1/users/me/tickets/` | Return authenticated user's tickets |
+
+Catalog endpoints:
+
+| Method | Endpoint | Description |
+|---|---|---|
+| `GET`, `POST` | `/api/v1/catalog/genres/` | List or create genres |
+| `GET`, `PUT`, `PATCH`, `DELETE` | `/api/v1/catalog/genres/{genre_id}/` | Retrieve, update, or delete a genre |
+| `GET`, `POST` | `/api/v1/catalog/movies/` | List or create movies |
+| `GET`, `PUT`, `PATCH`, `DELETE` | `/api/v1/catalog/movies/{movie_id}/` | Retrieve, update, or delete a movie |
+| `GET`, `POST` | `/api/v1/catalog/rooms/` | List or create rooms |
+| `GET`, `PUT`, `PATCH`, `DELETE` | `/api/v1/catalog/rooms/{room_id}/` | Retrieve, update, or delete a room |
+| `GET`, `POST` | `/api/v1/catalog/sessions/` | List or create sessions |
+| `GET`, `PUT`, `PATCH`, `DELETE` | `/api/v1/catalog/sessions/{session_id}/` | Retrieve, update, or delete a session |
+
+Reservation endpoints:
+
+| Method | Endpoint | Description |
+|---|---|---|
+| `GET`, `POST` | `/api/v1/reservation/seat-rows/` | List or create seat rows |
+| `GET`, `PUT`, `PATCH`, `DELETE` | `/api/v1/reservation/seat-rows/{seat_row_id}/` | Retrieve, update, or delete a seat row |
+| `GET`, `POST` | `/api/v1/reservation/seats/` | List or create seats |
+| `GET`, `PUT`, `PATCH`, `DELETE` | `/api/v1/reservation/seats/{seat_id}/` | Retrieve, update, or delete a seat |
+| `GET`, `POST` | `/api/v1/reservation/session-seats/` | List or create session seats |
+| `GET`, `DELETE` | `/api/v1/reservation/session-seats/{session_seat_id}/` | Retrieve or delete a session seat |
+| `GET`, `POST` | `/api/v1/reservation/tickets/` | List or create tickets |
+| `GET`, `DELETE` | `/api/v1/reservation/tickets/{ticket_id}/` | Retrieve or delete a ticket |
+| `GET` | `/api/v1/reservation/sessions/{session_id}/seats/` | Return the seat map for a session |
+| `POST`, `DELETE` | `/api/v1/reservation/sessions/{session_id}/reservations/` | Create or release temporary reservations |
+| `POST` | `/api/v1/reservation/checkout/` | Finalize checkout for temporarily reserved seats |
+
+The backend currently includes `users.urls` under both `/api/v1/auth/` and
+`/api/v1/users/`. The canonical frontend-facing routes are the ones listed above;
+the duplicated user-route aliases are implementation compatibility paths and
+should not be preferred by new clients.
 
 ### 9.2 Catalog Query Parameters (amended)
 

@@ -39,6 +39,7 @@ The table below maps implemented requirements to concrete endpoints/components.
 | --- | --- | --- |
 | User registration | Register with email, username, password | `POST /api/v1/auth/register/` (`users.views.UserRegistrationView`) |
 | JWT login | Login returns access + refresh tokens | `POST /api/v1/auth/login/` (`users.views.UserLoginView`) |
+| JWT refresh | Refresh token returns a new access token | `POST /api/v1/auth/token/refresh/` (`users.views.UserTokenRefreshView`) |
 | Current user profile | Returns authenticated user identity | `GET /api/v1/auth/me/` and `GET /api/v1/users/me/` |
 | Public catalog | List/create/retrieve/update/delete genres, movies, rooms, sessions | `catalog.views.*` under `/api/v1/catalog/*` |
 | Reservation admin entities | Full CRUD for seat rows and seats; list/create/retrieve/delete for session seats and tickets | `reservations.views.*` under `/api/v1/reservation/*` |
@@ -148,6 +149,7 @@ docker compose exec celery celery -A cinepolis_natal_api inspect ping
 - `SECRET_KEY`: Django secret key.
 - `DEBUG`: `True` or `False`.
 - `ALLOWED_HOSTS`: comma-separated host list.
+- `CORS_ALLOWED_ORIGINS`: comma-separated frontend origins allowed to call the API. Defaults to `http://localhost:3000` for local development; set explicit production origins instead of using wildcards.
 
 ### Database
 
@@ -338,6 +340,16 @@ For `curl`:
 	export ACCESS_TOKEN="<jwt-access-token>"
 	```
 
+### 2a) Refresh JWT access token
+
+```bash
+curl -s -X POST "$BASE_URL/api/v1/auth/token/refresh/" \
+	-H "Content-Type: application/json" \
+	-d '{"refresh":"<jwt-refresh-token>"}'
+```
+
+Expected: `200 OK` with a new `access` token.
+
 ### 3) List movies
 
 ```bash
@@ -428,6 +440,7 @@ Expected: `200 OK` paginated ticket list. Optional filters:
 ### Common error scenarios
 
 - Invalid credentials on login: `401` with `error.code = INVALID_CREDENTIALS`
+- Invalid or expired JWT on protected endpoints or token refresh: `401` with `error.code = NOT_AUTHENTICATED`
 - Validation failure (missing/invalid fields): `400` with `error.code = VALIDATION_FAILED`
 - Invalid checkout ticket type: `400` with `error.code = INVALID_TICKET_TYPE`
 - Invalid checkout payment method: `400` with `error.code = INVALID_PAYMENT_METHOD`
@@ -450,6 +463,7 @@ Expected: `200 OK` paginated ticket list. Optional filters:
 | --- | --- | --- | --- |
 | `POST` | `{{BASE_URL}}/api/v1/auth/register/` | No | `{"email":"dev1@example.com","username":"dev1","password":"StrongPass123!"}` |
 | `POST` | `{{BASE_URL}}/api/v1/auth/login/` | No | `{"email":"dev1@example.com","password":"StrongPass123!"}` |
+| `POST` | `{{BASE_URL}}/api/v1/auth/token/refresh/` | No | `{"refresh":"<jwt-refresh-token>"}` |
 | `GET` | `{{BASE_URL}}/api/v1/auth/me/` | Bearer | none |
 | `GET` | `{{BASE_URL}}/api/v1/users/me/` | Bearer | none |
 | `GET` | `{{BASE_URL}}/api/v1/users/me/tickets/` | Bearer | none |
