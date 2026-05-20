@@ -40,7 +40,7 @@ class SessionSeatSerializer(serializers.ModelSerializer):
             "locked_by_user",
             "lock_expires_at",
         ]
-        read_only_fields = ["id"]
+        read_only_fields = ["id", "status", "locked_by_user", "lock_expires_at"]
 
 
 class TicketSerializer(serializers.ModelSerializer):

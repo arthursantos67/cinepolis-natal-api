@@ -40,8 +40,8 @@ The table below maps implemented requirements to concrete endpoints/components.
 | User registration | Register with email, username, password | `POST /api/v1/auth/register/` (`users.views.UserRegistrationView`) |
 | JWT login | Login returns access + refresh tokens | `POST /api/v1/auth/login/` (`users.views.UserLoginView`) |
 | Current user profile | Returns authenticated user identity | `GET /api/v1/auth/me/` and `GET /api/v1/users/me/` |
-| Public catalog | List/create/retrieve/update/delete genres, movies, rooms, sessions | `catalog.views.*` under `/api/v1/catalog/*` |
-| Reservation admin entities | Full CRUD for seat rows and seats; list/create/retrieve/delete for session seats and tickets | `reservations.views.*` under `/api/v1/reservation/*` |
+| Public catalog | Public list/retrieve for genres, movies, rooms, sessions; admin-only catalog mutations | `catalog.views.*` under `/api/v1/catalog/*` |
+| Reservation admin entities | Admin-only full CRUD for seat rows and seats; admin-only list/create/retrieve/delete for session seats; admin-only list/retrieve/delete for tickets | `reservations.views.*` under `/api/v1/reservation/*` |
 | Session seat map | Public seat status (`AVAILABLE`, `RESERVED`, `PURCHASED`) | `GET /api/v1/reservation/sessions/{session_id}/seats/` |
 | Temporary reservation | Authenticated seat lock with expiration metadata | `POST /api/v1/reservation/sessions/{session_id}/reservations/` |
 | Checkout | Transactional purchase and ticket creation | `POST /api/v1/reservation/checkout/` + `reservations.services.checkout_service` |
@@ -461,25 +461,25 @@ Expected: `200 OK` paginated ticket list. Optional filters:
 | Method | Route | Auth | Body example |
 | --- | --- | --- | --- |
 | `GET` | `{{BASE_URL}}/api/v1/catalog/genres/` | No | none |
-| `POST` | `{{BASE_URL}}/api/v1/catalog/genres/` | No | `{"name":"Sci-Fi"}` |
+| `POST` | `{{BASE_URL}}/api/v1/catalog/genres/` | Admin | `{"name":"Sci-Fi"}` |
 | `GET` | `{{BASE_URL}}/api/v1/catalog/genres/{genre_id}/` | No | none |
-| `PATCH` | `{{BASE_URL}}/api/v1/catalog/genres/{genre_id}/` | No | `{"name":"Science Fiction"}` |
-| `DELETE` | `{{BASE_URL}}/api/v1/catalog/genres/{genre_id}/` | No | none |
+| `PATCH` | `{{BASE_URL}}/api/v1/catalog/genres/{genre_id}/` | Admin | `{"name":"Science Fiction"}` |
+| `DELETE` | `{{BASE_URL}}/api/v1/catalog/genres/{genre_id}/` | Admin | none |
 | `GET` | `{{BASE_URL}}/api/v1/catalog/movies/` | No | none |
-| `POST` | `{{BASE_URL}}/api/v1/catalog/movies/` | No | `{"title":"Interstellar","genres":["{genre_id}"],"synopsis":"Space exploration.","duration_minutes":169,"release_date":"2014-11-07","poster_url":"https://example.com/interstellar.jpg"}` |
+| `POST` | `{{BASE_URL}}/api/v1/catalog/movies/` | Admin | `{"title":"Interstellar","genres":["{genre_id}"],"synopsis":"Space exploration.","duration_minutes":169,"release_date":"2014-11-07","poster_url":"https://example.com/interstellar.jpg"}` |
 | `GET` | `{{BASE_URL}}/api/v1/catalog/movies/{movie_id}/` | No | none |
-| `PATCH` | `{{BASE_URL}}/api/v1/catalog/movies/{movie_id}/` | No | `{"title":"Interstellar Remastered"}` |
-| `DELETE` | `{{BASE_URL}}/api/v1/catalog/movies/{movie_id}/` | No | none |
+| `PATCH` | `{{BASE_URL}}/api/v1/catalog/movies/{movie_id}/` | Admin | `{"title":"Interstellar Remastered"}` |
+| `DELETE` | `{{BASE_URL}}/api/v1/catalog/movies/{movie_id}/` | Admin | none |
 | `GET` | `{{BASE_URL}}/api/v1/catalog/rooms/` | No | none |
-| `POST` | `{{BASE_URL}}/api/v1/catalog/rooms/` | No | `{"name":"Room 2","capacity":80}` |
+| `POST` | `{{BASE_URL}}/api/v1/catalog/rooms/` | Admin | `{"name":"Room 2","capacity":80}` |
 | `GET` | `{{BASE_URL}}/api/v1/catalog/rooms/{room_id}/` | No | none |
-| `PATCH` | `{{BASE_URL}}/api/v1/catalog/rooms/{room_id}/` | No | `{"name":"Room Prime","capacity":100}` |
-| `DELETE` | `{{BASE_URL}}/api/v1/catalog/rooms/{room_id}/` | No | none |
+| `PATCH` | `{{BASE_URL}}/api/v1/catalog/rooms/{room_id}/` | Admin | `{"name":"Room Prime","capacity":100}` |
+| `DELETE` | `{{BASE_URL}}/api/v1/catalog/rooms/{room_id}/` | Admin | none |
 | `GET` | `{{BASE_URL}}/api/v1/catalog/sessions/` | No | none |
-| `POST` | `{{BASE_URL}}/api/v1/catalog/sessions/` | No | `{"movie":"{movie_id}","room":"{room_id}","start_time":"2026-03-23T18:00:00Z","end_time":"2026-03-23T20:55:00Z","base_price":"30.00"}` |
+| `POST` | `{{BASE_URL}}/api/v1/catalog/sessions/` | Admin | `{"movie":"{movie_id}","room":"{room_id}","start_time":"2026-03-23T18:00:00Z","end_time":"2026-03-23T20:55:00Z","base_price":"30.00"}` |
 | `GET` | `{{BASE_URL}}/api/v1/catalog/sessions/{session_id}/` | No | none |
-| `PATCH` | `{{BASE_URL}}/api/v1/catalog/sessions/{session_id}/` | No | `{"end_time":"2026-03-23T21:10:00Z"}` |
-| `DELETE` | `{{BASE_URL}}/api/v1/catalog/sessions/{session_id}/` | No | none |
+| `PATCH` | `{{BASE_URL}}/api/v1/catalog/sessions/{session_id}/` | Admin | `{"end_time":"2026-03-23T21:10:00Z"}` |
+| `DELETE` | `{{BASE_URL}}/api/v1/catalog/sessions/{session_id}/` | Admin | none |
 
 Notes:
 
@@ -491,24 +491,23 @@ Notes:
 
 | Method | Route | Auth | Body example |
 | --- | --- | --- | --- |
-| `GET` | `{{BASE_URL}}/api/v1/reservation/seat-rows/` | No | none |
-| `POST` | `{{BASE_URL}}/api/v1/reservation/seat-rows/` | No | `{"room":"{room_id}","name":"A"}` |
-| `GET` | `{{BASE_URL}}/api/v1/reservation/seat-rows/{seat_row_id}/` | No | none |
-| `PATCH` | `{{BASE_URL}}/api/v1/reservation/seat-rows/{seat_row_id}/` | No | `{"name":"B"}` |
-| `DELETE` | `{{BASE_URL}}/api/v1/reservation/seat-rows/{seat_row_id}/` | No | none |
-| `GET` | `{{BASE_URL}}/api/v1/reservation/seats/` | No | none |
-| `POST` | `{{BASE_URL}}/api/v1/reservation/seats/` | No | `{"row":"{seat_row_id}","number":1}` |
-| `GET` | `{{BASE_URL}}/api/v1/reservation/seats/{seat_id}/` | No | none |
-| `PATCH` | `{{BASE_URL}}/api/v1/reservation/seats/{seat_id}/` | No | `{"number":2}` |
-| `DELETE` | `{{BASE_URL}}/api/v1/reservation/seats/{seat_id}/` | No | none |
-| `GET` | `{{BASE_URL}}/api/v1/reservation/session-seats/` | No | none |
-| `POST` | `{{BASE_URL}}/api/v1/reservation/session-seats/` | No | `{"session":"{session_id}","seat":"{seat_id}","status":"AVAILABLE","locked_by_user":null,"lock_expires_at":null}` |
-| `GET` | `{{BASE_URL}}/api/v1/reservation/session-seats/{session_seat_id}/` | No | none |
-| `DELETE` | `{{BASE_URL}}/api/v1/reservation/session-seats/{session_seat_id}/` | No | none |
-| `GET` | `{{BASE_URL}}/api/v1/reservation/tickets/` | No | none |
-| `POST` | `{{BASE_URL}}/api/v1/reservation/tickets/` | No | `{"user":"{user_id}","session_seat":"{session_seat_id}","ticket_type":"inteira","amount_paid":"30.00","payment_method":"pix"}` |
-| `GET` | `{{BASE_URL}}/api/v1/reservation/tickets/{ticket_id}/` | No | none |
-| `DELETE` | `{{BASE_URL}}/api/v1/reservation/tickets/{ticket_id}/` | No | none |
+| `GET` | `{{BASE_URL}}/api/v1/reservation/seat-rows/` | Admin | none |
+| `POST` | `{{BASE_URL}}/api/v1/reservation/seat-rows/` | Admin | `{"room":"{room_id}","name":"A"}` |
+| `GET` | `{{BASE_URL}}/api/v1/reservation/seat-rows/{seat_row_id}/` | Admin | none |
+| `PATCH` | `{{BASE_URL}}/api/v1/reservation/seat-rows/{seat_row_id}/` | Admin | `{"name":"B"}` |
+| `DELETE` | `{{BASE_URL}}/api/v1/reservation/seat-rows/{seat_row_id}/` | Admin | none |
+| `GET` | `{{BASE_URL}}/api/v1/reservation/seats/` | Admin | none |
+| `POST` | `{{BASE_URL}}/api/v1/reservation/seats/` | Admin | `{"row":"{seat_row_id}","number":1}` |
+| `GET` | `{{BASE_URL}}/api/v1/reservation/seats/{seat_id}/` | Admin | none |
+| `PATCH` | `{{BASE_URL}}/api/v1/reservation/seats/{seat_id}/` | Admin | `{"number":2}` |
+| `DELETE` | `{{BASE_URL}}/api/v1/reservation/seats/{seat_id}/` | Admin | none |
+| `GET` | `{{BASE_URL}}/api/v1/reservation/session-seats/` | Admin | none |
+| `POST` | `{{BASE_URL}}/api/v1/reservation/session-seats/` | Admin | `{"session":"{session_id}","seat":"{seat_id}"}` |
+| `GET` | `{{BASE_URL}}/api/v1/reservation/session-seats/{session_seat_id}/` | Admin | none |
+| `DELETE` | `{{BASE_URL}}/api/v1/reservation/session-seats/{session_seat_id}/` | Admin | none |
+| `GET` | `{{BASE_URL}}/api/v1/reservation/tickets/` | Admin | none |
+| `GET` | `{{BASE_URL}}/api/v1/reservation/tickets/{ticket_id}/` | Admin | none |
+| `DELETE` | `{{BASE_URL}}/api/v1/reservation/tickets/{ticket_id}/` | Admin | none |
 | `GET` | `{{BASE_URL}}/api/v1/reservation/sessions/{{SESSION_ID}}/seats/` | No | none |
 | `POST` | `{{BASE_URL}}/api/v1/reservation/sessions/{{SESSION_ID}}/reservations/` | Bearer | `{"seat_ids":["{{SEAT_ID}}"]}` |
 | `POST` | `{{BASE_URL}}/api/v1/reservation/checkout/` | Bearer | `{"seats":[{"session_seat_id":"{{SESSION_SEAT_ID}}","ticket_type":"inteira"}],"payment_method":"pix"}` |
@@ -518,7 +517,7 @@ Notes:
 - `SeatRow` and `Seat` support full CRUD because they are structural resources.
 - `SessionSeat` and `Ticket` intentionally do not expose `PATCH` endpoints.
 - `SessionSeat` state transitions should happen through reservation and checkout flows, not arbitrary updates.
-- `Ticket` creation is allowed for admin/testing scenarios when the `SessionSeat` is already `PURCHASED`, but application purchase flow should use checkout.
+- `Ticket` records are created by checkout; the direct ticket API is read/delete only for admins.
 
 ## Error Handling
 
