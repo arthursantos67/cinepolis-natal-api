@@ -44,6 +44,11 @@ class SessionSeatSerializer(serializers.ModelSerializer):
 
 
 class TicketSerializer(serializers.ModelSerializer):
+    movie = serializers.SerializerMethodField()
+    session = serializers.SerializerMethodField()
+    room = serializers.SerializerMethodField()
+    seat = serializers.SerializerMethodField()
+
     class Meta:
         model = Ticket
         fields = [
@@ -55,8 +60,44 @@ class TicketSerializer(serializers.ModelSerializer):
             "amount_paid",
             "payment_method",
             "created_at",
+            "movie",
+            "session",
+            "room",
+            "seat",
         ]
         read_only_fields = ["id", "ticket_code", "created_at"]
+
+    def get_movie(self, obj):
+        movie = obj.session_seat.session.movie
+        return {
+            "id": str(movie.id),
+            "title": movie.title,
+            "poster_url": movie.poster_url,
+        }
+
+    def get_session(self, obj):
+        session = obj.session_seat.session
+        return {
+            "id": str(session.id),
+            "start_time": session.start_time,
+            "end_time": session.end_time,
+        }
+
+    def get_room(self, obj):
+        room = obj.session_seat.session.room
+        return {
+            "id": str(room.id),
+            "name": room.name,
+        }
+
+    def get_seat(self, obj):
+        seat = obj.session_seat.seat
+        return {
+            "id": str(seat.id),
+            "row": seat.row.name,
+            "number": seat.number,
+            "identifier": f"{seat.row.name}{seat.number}",
+        }
 
 
 class SessionSeatMapItemSerializer(serializers.ModelSerializer):
@@ -236,6 +277,10 @@ class CheckoutTicketResponseSerializer(serializers.Serializer):
     ticket_type = serializers.CharField()
     amount_paid = serializers.DecimalField(max_digits=8, decimal_places=2)
     payment_method = serializers.CharField()
+    movie = serializers.DictField()
+    session = serializers.DictField()
+    room = serializers.DictField()
+    seat = serializers.DictField()
 
 
 class CheckoutResponseSerializer(serializers.Serializer):

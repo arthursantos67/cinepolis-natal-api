@@ -1,5 +1,10 @@
 from django.utils import timezone
-from drf_spectacular.utils import OpenApiParameter, OpenApiResponse, extend_schema, extend_schema_view
+from drf_spectacular.utils import (
+    OpenApiParameter,
+    OpenApiResponse,
+    extend_schema,
+    extend_schema_view,
+)
 from rest_framework import status
 from rest_framework.generics import CreateAPIView, ListAPIView
 from rest_framework.permissions import AllowAny, IsAuthenticated
@@ -130,6 +135,7 @@ class MyTicketsView(ListAPIView):
             Ticket.objects.filter(user=self.request.user)
             .select_related(
                 "session_seat__session__movie",
+                "session_seat__session__room",
                 "session_seat__seat__row",
             )
             .order_by("-created_at")

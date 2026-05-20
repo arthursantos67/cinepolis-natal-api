@@ -1,6 +1,8 @@
-import pytest
 from decimal import Decimal
+
+import pytest
 from django.contrib.auth import get_user_model
+from django.core.exceptions import ValidationError
 from django.utils import timezone
 
 from catalog.models import Movie, Room, Session
@@ -58,10 +60,13 @@ def test_should_create_ticket_for_purchased_seat():
     assert ticket.id is not None
     assert ticket.ticket_code is not None
     assert ticket.session_seat == session_seat
+    assert ticket.ticket_type == "inteira"
+    assert ticket.amount_paid == Decimal("30.00")
+    assert ticket.payment_method == "pix"
 
 
 @pytest.mark.django_db
-def test_should_preserve_explicit_zero_amount_ticket():
+def test_should_not_allow_explicit_zero_amount_when_price_is_not_zero():
     user = get_user_model().objects.create_user(
         email="comp@test.com",
         username="comp_ticket",
@@ -94,16 +99,16 @@ def test_should_preserve_explicit_zero_amount_ticket():
         status=SessionSeatStatus.PURCHASED,
     )
 
-    ticket = Ticket.objects.create(
-        user=user,
-        session_seat=session_seat,
-        ticket_type="inteira",
-        amount_paid="0.00",
-        payment_method="pix",
-    )
+    with pytest.raises(ValidationError) as exc_info:
+        Ticket.objects.create(
+            user=user,
+            session_seat=session_seat,
+            ticket_type="inteira",
+            amount_paid="0.00",
+            payment_method="pix",
+        )
 
-    ticket.refresh_from_db()
-    assert ticket.amount_paid == Decimal("0.00")
+    assert "amount_paid" in exc_info.value.message_dict
 
 
 @pytest.mark.django_db
@@ -148,6 +153,52 @@ def test_should_not_allow_ticket_for_non_purchased_seat():
             amount_paid="30.00",
             payment_method="pix",
         )
+
+
+@pytest.mark.django_db
+def test_should_not_allow_ticket_with_invalid_amount_paid():
+    user = get_user_model().objects.create_user(
+        email="invalid-amount@test.com",
+        username="invalid_amount_ticket",
+        password="123456",
+    )
+
+    room = Room.objects.create(name="Invalid Amount Room", capacity=100)
+    row = SeatRow.objects.create(room=room, name="A")
+    seat = Seat.objects.create(row=row, number=1)
+
+    movie = Movie.objects.create(
+        title="Invalid Amount Movie",
+        synopsis="...",
+        duration_minutes=120,
+        release_date="2026-01-01",
+        poster_url="http://test.com",
+    )
+
+    session = Session.objects.create(
+        movie=movie,
+        room=room,
+        start_time=timezone.now(),
+        end_time=timezone.now(),
+        base_price="30.00",
+    )
+
+    session_seat = SessionSeat.objects.create(
+        session=session,
+        seat=seat,
+        status=SessionSeatStatus.PURCHASED,
+    )
+
+    with pytest.raises(ValidationError) as exc_info:
+        Ticket.objects.create(
+            user=user,
+            session_seat=session_seat,
+            ticket_type="meia",
+            amount_paid="30.00",
+            payment_method="pix",
+        )
+
+    assert "amount_paid" in exc_info.value.message_dict
 
 
 @pytest.mark.django_db
