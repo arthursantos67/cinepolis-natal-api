@@ -1,6 +1,7 @@
 import pytest
 from decimal import Decimal
 from datetime import datetime, timedelta
+from django.conf import settings
 from django.core.cache import cache
 from django.db import connection
 from django.test.utils import CaptureQueriesContext
@@ -9,6 +10,7 @@ from rest_framework import status
 from rest_framework.test import APIClient
 
 from catalog.models import Genre, Movie, MovieStatus, Room, Session
+from users.models import User
 
 
 @pytest.mark.django_db
@@ -20,8 +22,37 @@ class TestCatalogApi:
         cache.clear()
 
     @pytest.fixture
-    def api_client(self):
+    def admin_user(self):
+        return User.objects.create_user(
+            email="catalog-admin@example.com",
+            username="catalog_admin",
+            password="StrongPass123",
+            is_staff=True,
+        )
+
+    @pytest.fixture
+    def api_client(self, admin_user):
+        client = APIClient()
+        client.force_authenticate(user=admin_user)
+        return client
+
+    @pytest.fixture
+    def anonymous_api_client(self):
         return APIClient()
+
+    @pytest.fixture
+    def regular_user(self):
+        return User.objects.create_user(
+            email="catalog-user@example.com",
+            username="catalog_user",
+            password="StrongPass123",
+        )
+
+    @pytest.fixture
+    def regular_api_client(self, regular_user):
+        client = APIClient()
+        client.force_authenticate(user=regular_user)
+        return client
 
     @pytest.fixture
     def genre(self):
@@ -80,6 +111,12 @@ class TestCatalogApi:
         movie.genres.set([genre])
         return movie
 
+    def test_global_default_permission_is_not_allow_any(self):
+        default_permissions = settings.REST_FRAMEWORK["DEFAULT_PERMISSION_CLASSES"]
+
+        assert "rest_framework.permissions.IsAuthenticated" in default_permissions
+        assert "rest_framework.permissions.AllowAny" not in default_permissions
+
     def test_list_genres_returns_200(self, api_client, genre):
         response = api_client.get("/api/v1/catalog/genres/")
 
@@ -87,6 +124,151 @@ class TestCatalogApi:
         assert response.data["count"] == 1
         assert len(response.data["results"]) == 1
         assert response.data["results"][0]["name"] == genre.name
+
+    def test_catalog_read_endpoints_remain_public(
+        self,
+        anonymous_api_client,
+        genre,
+        movie,
+        room,
+        session,
+    ):
+        endpoints = [
+            "/api/v1/catalog/genres/",
+            f"/api/v1/catalog/genres/{genre.id}/",
+            "/api/v1/catalog/movies/",
+            f"/api/v1/catalog/movies/{movie.id}/",
+            "/api/v1/catalog/rooms/",
+            f"/api/v1/catalog/rooms/{room.id}/",
+            "/api/v1/catalog/sessions/",
+            f"/api/v1/catalog/sessions/{session.id}/",
+        ]
+
+        for endpoint in endpoints:
+            response = anonymous_api_client.get(endpoint)
+            assert response.status_code == status.HTTP_200_OK
+
+    def test_anonymous_users_cannot_mutate_catalog_resources(
+        self,
+        anonymous_api_client,
+        genre,
+        movie,
+        room,
+        session,
+    ):
+        forbidden_requests = [
+            (
+                anonymous_api_client.post,
+                "/api/v1/catalog/genres/",
+                {"name": "Sci-Fi"},
+            ),
+            (
+                anonymous_api_client.patch,
+                f"/api/v1/catalog/genres/{genre.id}/",
+                {"name": "Updated"},
+            ),
+            (
+                anonymous_api_client.delete,
+                f"/api/v1/catalog/genres/{genre.id}/",
+                None,
+            ),
+            (
+                anonymous_api_client.post,
+                "/api/v1/catalog/movies/",
+                {
+                    "title": "Interstellar",
+                    "genres": [str(genre.id)],
+                    "synopsis": "Space exploration.",
+                    "duration_minutes": 169,
+                    "release_date": "2014-11-07",
+                    "poster_url": "https://example.com/interstellar.jpg",
+                },
+            ),
+            (
+                anonymous_api_client.patch,
+                f"/api/v1/catalog/movies/{movie.id}/",
+                {"title": "Updated"},
+            ),
+            (
+                anonymous_api_client.delete,
+                f"/api/v1/catalog/movies/{movie.id}/",
+                None,
+            ),
+            (
+                anonymous_api_client.post,
+                "/api/v1/catalog/rooms/",
+                {"name": "Room 2", "capacity": 80},
+            ),
+            (
+                anonymous_api_client.patch,
+                f"/api/v1/catalog/rooms/{room.id}/",
+                {"name": "Updated"},
+            ),
+            (
+                anonymous_api_client.delete,
+                f"/api/v1/catalog/rooms/{room.id}/",
+                None,
+            ),
+            (
+                anonymous_api_client.post,
+                "/api/v1/catalog/sessions/",
+                {
+                    "movie": str(movie.id),
+                    "room": str(room.id),
+                    "start_time": "2026-03-23T18:00:00Z",
+                    "end_time": "2026-03-23T20:55:00Z",
+                    "base_price": "42.50",
+                },
+            ),
+            (
+                anonymous_api_client.patch,
+                f"/api/v1/catalog/sessions/{session.id}/",
+                {"base_price": "36.75"},
+            ),
+            (
+                anonymous_api_client.delete,
+                f"/api/v1/catalog/sessions/{session.id}/",
+                None,
+            ),
+        ]
+
+        for method, endpoint, payload in forbidden_requests:
+            if payload is None:
+                response = method(endpoint)
+            else:
+                response = method(endpoint, payload, format="json")
+
+            assert response.status_code == status.HTTP_401_UNAUTHORIZED
+
+    def test_regular_users_cannot_mutate_catalog_resources(
+        self,
+        regular_api_client,
+        genre,
+        movie,
+        room,
+        session,
+    ):
+        requests = [
+            regular_api_client.post(
+                "/api/v1/catalog/genres/",
+                {"name": "Sci-Fi"},
+                format="json",
+            ),
+            regular_api_client.patch(
+                f"/api/v1/catalog/movies/{movie.id}/",
+                {"title": "Updated"},
+                format="json",
+            ),
+            regular_api_client.delete(f"/api/v1/catalog/rooms/{room.id}/"),
+            regular_api_client.patch(
+                f"/api/v1/catalog/sessions/{session.id}/",
+                {"base_price": "36.75"},
+                format="json",
+            ),
+        ]
+
+        for response in requests:
+            assert response.status_code == status.HTTP_403_FORBIDDEN
 
     def test_create_genre_returns_201(self, api_client):
         response = api_client.post(

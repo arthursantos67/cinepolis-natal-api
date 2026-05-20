@@ -9,7 +9,7 @@ from rest_framework.generics import (
     RetrieveUpdateDestroyAPIView,
     RetrieveDestroyAPIView,
 )
-from rest_framework.permissions import AllowAny, IsAuthenticated
+from rest_framework.permissions import AllowAny, IsAdminUser, IsAuthenticated
 from rest_framework.response import Response
 
 from cinepolis_natal_api.throttling import ReservationRateThrottle
@@ -59,28 +59,28 @@ from reservations.services.release_service import (
 class SeatRowListCreateView(ListCreateAPIView):
     queryset = SeatRow.objects.select_related("room").all()
     serializer_class = SeatRowSerializer
-    permission_classes = [AllowAny]
+    permission_classes = [IsAdminUser]
 
 
 @extend_schema(tags=["Reservations"], summary="Get, update or delete seat row")
 class SeatRowDetailView(RetrieveUpdateDestroyAPIView):
     queryset = SeatRow.objects.select_related("room").all()
     serializer_class = SeatRowSerializer
-    permission_classes = [AllowAny]
+    permission_classes = [IsAdminUser]
 
 
 @extend_schema(tags=["Reservations"], summary="List or create seats")
 class SeatListCreateView(ListCreateAPIView):
     queryset = Seat.objects.select_related("row", "row__room").all()
     serializer_class = SeatSerializer
-    permission_classes = [AllowAny]
+    permission_classes = [IsAdminUser]
 
 
 @extend_schema(tags=["Reservations"], summary="Get, update or delete seat")
 class SeatDetailView(RetrieveUpdateDestroyAPIView):
     queryset = Seat.objects.select_related("row", "row__room").all()
     serializer_class = SeatSerializer
-    permission_classes = [AllowAny]
+    permission_classes = [IsAdminUser]
 
 
 @extend_schema(tags=["Reservations"], summary="List or create session seats")
@@ -89,7 +89,7 @@ class SessionSeatListCreateView(ListCreateAPIView):
         "session", "seat", "seat__row", "seat__row__room", "locked_by_user"
     ).all()
     serializer_class = SessionSeatSerializer
-    permission_classes = [AllowAny]
+    permission_classes = [IsAdminUser]
 
 
 @extend_schema(tags=["Reservations"], summary="Get or delete session seat")
@@ -98,11 +98,11 @@ class SessionSeatDetailView(RetrieveDestroyAPIView):
         "session", "seat", "seat__row", "seat__row__room", "locked_by_user"
     ).all()
     serializer_class = SessionSeatSerializer
-    permission_classes = [AllowAny]
+    permission_classes = [IsAdminUser]
 
 
-@extend_schema(tags=["Reservations"], summary="List or create tickets")
-class TicketListCreateView(ListCreateAPIView):
+@extend_schema(tags=["Reservations"], summary="List tickets")
+class TicketListCreateView(ListAPIView):
     queryset = Ticket.objects.select_related(
         "user",
         "session_seat",
@@ -113,7 +113,7 @@ class TicketListCreateView(ListCreateAPIView):
         "session_seat__seat__row",
     ).all()
     serializer_class = TicketSerializer
-    permission_classes = [AllowAny]
+    permission_classes = [IsAdminUser]
 
 
 @extend_schema(tags=["Reservations"], summary="Get or delete ticket")
@@ -128,7 +128,7 @@ class TicketDetailView(RetrieveDestroyAPIView):
         "session_seat__seat__row",
     ).all()
     serializer_class = TicketSerializer
-    permission_classes = [AllowAny]
+    permission_classes = [IsAdminUser]
 
 
 @extend_schema_view(

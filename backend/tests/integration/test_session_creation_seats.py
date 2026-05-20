@@ -4,14 +4,14 @@ from rest_framework.test import APIClient
 
 from catalog.models import Movie, Room, Session
 from reservations.models import Seat, SeatRow, SessionSeat
-
+from users.models import User
 
 REST_FRAMEWORK_OVERRIDE = {
     "DEFAULT_AUTHENTICATION_CLASSES": [
         "rest_framework_simplejwt.authentication.JWTAuthentication",
     ],
     "DEFAULT_PERMISSION_CLASSES": [
-        "rest_framework.permissions.AllowAny",
+        "rest_framework.permissions.IsAuthenticated",
     ],
     "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.PageNumberPagination",
     "PAGE_SIZE": 10,
@@ -37,6 +37,13 @@ def disable_throttling_for_module():
 @pytest.mark.django_db
 def test_creating_session_auto_generates_session_seats():
     client = APIClient()
+    admin_user = User.objects.create_user(
+        email="session-admin@example.com",
+        username="session_admin",
+        password="StrongPass123",
+        is_staff=True,
+    )
+    client.force_authenticate(user=admin_user)
 
     room = Room.objects.create(name="Room 1", capacity=100)
     row_a = SeatRow.objects.create(room=room, name="A")

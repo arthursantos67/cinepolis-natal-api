@@ -8,8 +8,8 @@ from drf_spectacular.utils import extend_schema
 from rest_framework.exceptions import ValidationError
 from rest_framework.response import Response
 from rest_framework.generics import ListCreateAPIView, RetrieveUpdateDestroyAPIView
-from rest_framework.permissions import AllowAny
 
+from cinepolis_natal_api.permissions import IsAdminUserOrReadOnly
 from catalog.models import Genre, Movie, MovieStatus, Room, Session
 from catalog.serializers import (
     GenreSerializer,
@@ -42,14 +42,14 @@ def invalidate_movie_and_session_list_cache():
 class GenreListCreateView(ListCreateAPIView):
     queryset = Genre.objects.all()
     serializer_class = GenreSerializer
-    permission_classes = [AllowAny]
+    permission_classes = [IsAdminUserOrReadOnly]
 
 
 @extend_schema(tags=["Catalog"], summary="Get, update or delete genre")
 class GenreDetailView(RetrieveUpdateDestroyAPIView):
     queryset = Genre.objects.all()
     serializer_class = GenreSerializer
-    permission_classes = [AllowAny]
+    permission_classes = [IsAdminUserOrReadOnly]
 
     def perform_update(self, serializer):
         serializer.save()
@@ -64,7 +64,7 @@ class GenreDetailView(RetrieveUpdateDestroyAPIView):
 @extend_schema(tags=["Catalog"], summary="List or create movies")
 class MovieListCreateView(ListCreateAPIView):
     queryset = Movie.objects.prefetch_related("genres").all()
-    permission_classes = [AllowAny]
+    permission_classes = [IsAdminUserOrReadOnly]
     CACHE_TTL_SECONDS = 300
     IS_FEATURED_FILTER_VALUES = {
         "true": True,
@@ -148,7 +148,7 @@ class MovieListCreateView(ListCreateAPIView):
 @extend_schema(tags=["Catalog"], summary="Get, update or delete movie")
 class MovieDetailView(RetrieveUpdateDestroyAPIView):
     queryset = Movie.objects.prefetch_related("genres").all()
-    permission_classes = [AllowAny]
+    permission_classes = [IsAdminUserOrReadOnly]
 
     def get_serializer_class(self):
         if self.request.method == "GET":
@@ -169,14 +169,14 @@ class MovieDetailView(RetrieveUpdateDestroyAPIView):
 class RoomListCreateView(ListCreateAPIView):
     queryset = Room.objects.all()
     serializer_class = RoomSerializer
-    permission_classes = [AllowAny]
+    permission_classes = [IsAdminUserOrReadOnly]
 
 
 @extend_schema(tags=["Catalog"], summary="Get, update or delete room")
 class RoomDetailView(RetrieveUpdateDestroyAPIView):
     queryset = Room.objects.all()
     serializer_class = RoomSerializer
-    permission_classes = [AllowAny]
+    permission_classes = [IsAdminUserOrReadOnly]
 
     def perform_update(self, serializer):
         serializer.save()
@@ -195,7 +195,7 @@ class SessionListCreateView(ListCreateAPIView):
         .prefetch_related("movie__genres")
         .all()
     )
-    permission_classes = [AllowAny]
+    permission_classes = [IsAdminUserOrReadOnly]
     CACHE_TTL_SECONDS = 300
 
     def _get_validated_filters(self):
@@ -303,7 +303,7 @@ class SessionDetailView(RetrieveUpdateDestroyAPIView):
         .prefetch_related("movie__genres")
         .all()
     )
-    permission_classes = [AllowAny]
+    permission_classes = [IsAdminUserOrReadOnly]
 
     def get_serializer_class(self):
         if self.request.method == "GET":
