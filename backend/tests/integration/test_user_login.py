@@ -1,3 +1,5 @@
+from itertools import count
+
 import pytest
 from rest_framework import status
 from rest_framework.test import APIClient
@@ -5,11 +7,16 @@ from rest_framework.test import APIClient
 from users.models import User
 
 
+_ip_counter = count(1)
+
+
 @pytest.mark.django_db
 class TestUserLoginView:
     @pytest.fixture
     def api_client(self):
-        return APIClient()
+        client = APIClient()
+        client.defaults["REMOTE_ADDR"] = f"10.20.30.{next(_ip_counter)}"
+        return client
 
     @pytest.fixture
     def user(self):
@@ -34,6 +41,49 @@ class TestUserLoginView:
         assert "refresh" in response.data
         assert response.data["access"]
         assert response.data["refresh"]
+
+    def test_token_refresh_returns_new_access_token(self, api_client, user):
+        login_response = api_client.post(
+            "/api/v1/auth/login/",
+            {
+                "email": "orlando@gmail.com",
+                "password": "Soueu123*A",
+            },
+            format="json",
+        )
+
+        refresh_response = api_client.post(
+            "/api/v1/auth/token/refresh/",
+            {"refresh": login_response.data["refresh"]},
+            format="json",
+        )
+
+        assert refresh_response.status_code == status.HTTP_200_OK
+        assert "access" in refresh_response.data
+        assert "refresh" not in refresh_response.data
+
+        api_client.credentials(
+            HTTP_AUTHORIZATION=f"Bearer {refresh_response.data['access']}"
+        )
+        current_user_response = api_client.get("/api/v1/auth/me/")
+
+        assert current_user_response.status_code == status.HTTP_200_OK
+        assert current_user_response.data["id"] == str(user.id)
+
+    def test_token_refresh_returns_standard_error_with_invalid_refresh(
+        self,
+        api_client,
+    ):
+        response = api_client.post(
+            "/api/v1/auth/token/refresh/",
+            {"refresh": "invalid-refresh-token"},
+            format="json",
+        )
+
+        assert response.status_code == status.HTTP_401_UNAUTHORIZED
+        assert response.data["error"]["code"] == "NOT_AUTHENTICATED"
+        assert response.data["error"]["status"] == 401
+        assert isinstance(response.data["error"]["details"], dict)
 
     def test_login_returns_401_with_invalid_password(self, api_client, user):
         response = api_client.post(

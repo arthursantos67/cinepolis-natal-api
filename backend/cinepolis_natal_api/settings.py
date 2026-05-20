@@ -37,6 +37,7 @@ DJANGO_APPS = [
 
 THIRD_PARTY_APPS = [
     "django.contrib.postgres",
+    "corsheaders",
     "rest_framework",
     "drf_spectacular",
 ]
@@ -54,6 +55,7 @@ INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS
 # -------------------------------------------------------------------
 
 MIDDLEWARE = [
+    "corsheaders.middleware.CorsMiddleware",
     "django.middleware.security.SecurityMiddleware",
     "cinepolis_natal_api.middleware.CorrelationIdMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
@@ -70,6 +72,16 @@ MIDDLEWARE = [
 
 ROOT_URLCONF = "cinepolis_natal_api.urls"
 WSGI_APPLICATION = "cinepolis_natal_api.wsgi.application"
+
+# -------------------------------------------------------------------
+# CORS
+# -------------------------------------------------------------------
+
+CORS_ALLOWED_ORIGINS = [
+    origin.strip()
+    for origin in os.getenv("CORS_ALLOWED_ORIGINS", "http://localhost:3000").split(",")
+    if origin.strip()
+]
 
 # -------------------------------------------------------------------
 # Templates

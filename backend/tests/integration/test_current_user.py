@@ -24,6 +24,7 @@ class TestCurrentUserView:
         response = api_client.get("/api/v1/auth/me/")
 
         assert response.status_code == status.HTTP_401_UNAUTHORIZED
+        assert response.data["error"]["code"] == "NOT_AUTHENTICATED"
 
     def test_current_user_returns_authenticated_user(self, api_client, user):
         refresh = RefreshToken.for_user(user)
@@ -45,3 +46,4 @@ class TestCurrentUserView:
         response = api_client.get("/api/v1/auth/me/")
 
         assert response.status_code == status.HTTP_401_UNAUTHORIZED
+        assert response.data["error"]["code"] == "NOT_AUTHENTICATED"
