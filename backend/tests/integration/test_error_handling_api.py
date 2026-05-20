@@ -12,7 +12,6 @@ from rest_framework.throttling import SimpleRateThrottle
 from catalog.models import Genre, Movie, Room, Session
 from reservations.models import Seat, SeatRow, SessionSeat, SessionSeatStatus
 
-
 User = get_user_model()
 
 
@@ -126,7 +125,7 @@ def test_error_schema_for_400_validation_error(api_client):
 
 @pytest.mark.django_db
 def test_error_schema_for_401_not_authenticated(api_client):
-    response = api_client.get("/api/v1/auth/me/")
+    response = api_client.get("/api/v1/users/me/")
 
     assert response.status_code == status.HTTP_401_UNAUTHORIZED
     assert response.data["error"]["code"] == "NOT_AUTHENTICATED"

@@ -3,6 +3,7 @@ from decimal import Decimal
 
 from django.contrib.postgres.constraints import ExclusionConstraint
 from django.contrib.postgres.fields import DateTimeRangeField, RangeOperators
+from django.apps import apps
 from django.core.exceptions import ValidationError
 from django.core.validators import MinValueValidator
 from django.db import models
@@ -72,6 +73,28 @@ class Room(models.Model):
     def __str__(self):
         return self.name
 
+    def clean(self):
+        super().clean()
+
+        if not self.pk:
+            return
+
+        Seat = apps.get_model("reservations", "Seat")
+        actual_seat_count = Seat.objects.filter(row__room=self).count()
+
+        if self.capacity < actual_seat_count:
+            raise ValidationError(
+                {
+                    "capacity": (
+                        "Room capacity cannot be lower than the number of registered seats."
+                    )
+                }
+            )
+
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        super().save(*args, **kwargs)
+
 
 class Session(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
@@ -100,6 +123,43 @@ class Session(models.Model):
 
         if self.end_time <= self.start_time:
             raise ValidationError({"end_time": "End time must be after start time."})
+
+        if self.pk:
+            try:
+                original_session = Session.objects.get(pk=self.pk)
+            except Session.DoesNotExist:
+                original_session = None
+
+        if self.pk and original_session is not None:
+            sensitive_fields = [
+                "movie_id",
+                "room_id",
+                "start_time",
+                "end_time",
+                "base_price",
+            ]
+            sensitive_fields_changed = any(
+                getattr(self, field) != getattr(original_session, field)
+                for field in sensitive_fields
+            )
+
+            if sensitive_fields_changed:
+                SessionSeat = apps.get_model("reservations", "SessionSeat")
+                sensitive_statuses = ["RESERVED", "PURCHASED"]
+
+                has_reserved_or_purchased_seats = SessionSeat.objects.filter(
+                    session=self,
+                    status__in=sensitive_statuses,
+                ).exists()
+
+                if has_reserved_or_purchased_seats:
+                    raise ValidationError(
+                        {
+                            "session": (
+                                "Sessions with reserved or purchased seats cannot change movie, room, time, or price."
+                            )
+                        }
+                    )
 
         overlapping_sessions = Session.objects.filter(
             room=self.room,
@@ -148,6 +208,10 @@ class Session(models.Model):
 
     def __str__(self):
         return f"{self.movie.title} - {self.room.name} - {self.start_time}"
+
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        super().save(*args, **kwargs)
 
 
 class Genre(models.Model):

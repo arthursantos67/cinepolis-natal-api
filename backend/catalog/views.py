@@ -3,11 +3,10 @@ import uuid
 from django.core.cache import cache
 from django.utils import timezone
 from django.utils.dateparse import parse_date, parse_datetime
-from django_redis import get_redis_connection
 from drf_spectacular.utils import extend_schema
 from rest_framework.exceptions import ValidationError
-from rest_framework.response import Response
 from rest_framework.generics import ListCreateAPIView, RetrieveUpdateDestroyAPIView
+from rest_framework.response import Response
 
 from cinepolis_natal_api.permissions import IsAdminUserOrReadOnly
 from catalog.models import Genre, Movie, MovieStatus, Room, Session
@@ -20,17 +19,35 @@ from catalog.serializers import (
     SessionWriteSerializer,
 )
 
+MOVIE_LIST_CACHE_VERSION_KEY = "catalog:movies:version"
+SESSION_LIST_CACHE_VERSION_KEY = "catalog:sessions:version"
+INITIAL_CACHE_VERSION = 1
+
+
+def _get_cache_namespace_version(version_key):
+    cache.add(version_key, INITIAL_CACHE_VERSION, timeout=None)
+    return cache.get(version_key)
+
+
+def _bump_cache_namespace_version(version_key):
+    cache.add(version_key, INITIAL_CACHE_VERSION, timeout=None)
+    try:
+        cache.incr(version_key)
+    except ValueError:
+        cache.set(version_key, INITIAL_CACHE_VERSION + 1, timeout=None)
+
+
+def _catalog_list_cache_key(namespace, version_key, request):
+    version = _get_cache_namespace_version(version_key)
+    return f"catalog:{namespace}:v{version}:{request.get_full_path()}"
+
 
 def invalidate_movie_list_cache():
-    redis = get_redis_connection("default")
-    for key in redis.scan_iter("*catalog:movies:*"):
-        redis.delete(key)
+    _bump_cache_namespace_version(MOVIE_LIST_CACHE_VERSION_KEY)
 
 
 def invalidate_session_list_cache():
-    redis = get_redis_connection("default")
-    for key in redis.scan_iter("*catalog:sessions:*"):
-        redis.delete(key)
+    _bump_cache_namespace_version(SESSION_LIST_CACHE_VERSION_KEY)
 
 
 def invalidate_movie_and_session_list_cache():
@@ -129,7 +146,11 @@ class MovieListCreateView(ListCreateAPIView):
 
     def list(self, request, *args, **kwargs):
         self._get_validated_filters()
-        cache_key = f"catalog:movies:{request.get_full_path()}"
+        cache_key = _catalog_list_cache_key(
+            "movies",
+            MOVIE_LIST_CACHE_VERSION_KEY,
+            request,
+        )
         cached_response = cache.get(cache_key)
 
         if cached_response is not None:
@@ -280,7 +301,11 @@ class SessionListCreateView(ListCreateAPIView):
 
     def list(self, request, *args, **kwargs):
         self._get_validated_filters()
-        cache_key = f"catalog:sessions:{request.get_full_path()}"
+        cache_key = _catalog_list_cache_key(
+            "sessions",
+            SESSION_LIST_CACHE_VERSION_KEY,
+            request,
+        )
         cached_response = cache.get(cache_key)
 
         if cached_response is not None:

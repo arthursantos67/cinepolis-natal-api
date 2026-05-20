@@ -5,21 +5,44 @@ from django.db.utils import OperationalError
 
 
 class HealthCheckService:
-    def execute(self) -> dict:
+    def liveness(self) -> dict:
+        return {
+            "status": "ok",
+            "checks": {
+                "process": "ok",
+            },
+        }
+
+    def readiness(self) -> dict:
+        checks = {
+            "database": self._check_database(),
+            "redis": self._check_redis(),
+        }
+
+        return {
+            "status": self._overall_status(checks),
+            "checks": checks,
+        }
+
+    def deep(self) -> dict:
         services = {
             "database": self._check_database(),
             "redis": self._check_redis(),
             "celery": self._check_celery(),
         }
 
-        overall_status = "ok" if all(
-            status == "ok" for status in services.values()
-        ) else "unhealthy"
-
         return {
-            "status": overall_status,
-            "services": services,
+            "status": self._overall_status(services),
+            "checks": services,
         }
+
+    def execute(self) -> dict:
+        return self.readiness()
+
+    def _overall_status(self, checks: dict) -> str:
+        return (
+            "ok" if all(status == "ok" for status in checks.values()) else "unhealthy"
+        )
 
     def _check_database(self) -> str:
         try:

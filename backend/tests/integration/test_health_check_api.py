@@ -9,7 +9,18 @@ class TestHealthCheckApi:
     def api_client(self):
         return APIClient()
 
-    def test_health_check_returns_200_when_all_services_are_healthy(
+    def test_liveness_returns_200_for_process_health(self, api_client):
+        response = api_client.get("/health/live/")
+
+        assert response.status_code == status.HTTP_200_OK
+        assert response.json() == {
+            "status": "ok",
+            "checks": {
+                "process": "ok",
+            },
+        }
+
+    def test_readiness_returns_200_when_core_api_dependencies_are_healthy(
         self,
         api_client,
         monkeypatch,
@@ -24,7 +35,36 @@ class TestHealthCheckApi:
         )
         monkeypatch.setattr(
             "cinepolis_natal_api.health.HealthCheckService._check_celery",
+            lambda self: "unavailable",
+        )
+
+        response = api_client.get("/health/ready/")
+
+        assert response.status_code == status.HTTP_200_OK
+        assert response.json() == {
+            "status": "ok",
+            "checks": {
+                "database": "ok",
+                "redis": "ok",
+            },
+        }
+
+    def test_legacy_health_endpoint_uses_readiness_policy(
+        self,
+        api_client,
+        monkeypatch,
+    ):
+        monkeypatch.setattr(
+            "cinepolis_natal_api.health.HealthCheckService._check_database",
             lambda self: "ok",
+        )
+        monkeypatch.setattr(
+            "cinepolis_natal_api.health.HealthCheckService._check_redis",
+            lambda self: "ok",
+        )
+        monkeypatch.setattr(
+            "cinepolis_natal_api.health.HealthCheckService._check_celery",
+            lambda self: "unavailable",
         )
 
         response = api_client.get("/health/")
@@ -32,14 +72,13 @@ class TestHealthCheckApi:
         assert response.status_code == status.HTTP_200_OK
         assert response.json() == {
             "status": "ok",
-            "services": {
+            "checks": {
                 "database": "ok",
                 "redis": "ok",
-                "celery": "ok",
             },
         }
 
-    def test_health_check_returns_503_when_database_is_unavailable(
+    def test_readiness_returns_503_when_database_is_unavailable(
         self,
         api_client,
         monkeypatch,
@@ -52,24 +91,19 @@ class TestHealthCheckApi:
             "cinepolis_natal_api.health.HealthCheckService._check_redis",
             lambda self: "ok",
         )
-        monkeypatch.setattr(
-            "cinepolis_natal_api.health.HealthCheckService._check_celery",
-            lambda self: "ok",
-        )
 
-        response = api_client.get("/health/")
+        response = api_client.get("/health/ready/")
 
         assert response.status_code == status.HTTP_503_SERVICE_UNAVAILABLE
         assert response.json() == {
             "status": "unhealthy",
-            "services": {
+            "checks": {
                 "database": "unavailable",
                 "redis": "ok",
-                "celery": "ok",
             },
         }
 
-    def test_health_check_returns_503_when_redis_is_unavailable(
+    def test_readiness_returns_503_when_redis_is_unavailable(
         self,
         api_client,
         monkeypatch,
@@ -82,24 +116,19 @@ class TestHealthCheckApi:
             "cinepolis_natal_api.health.HealthCheckService._check_redis",
             lambda self: "unavailable",
         )
-        monkeypatch.setattr(
-            "cinepolis_natal_api.health.HealthCheckService._check_celery",
-            lambda self: "ok",
-        )
 
-        response = api_client.get("/health/")
+        response = api_client.get("/health/ready/")
 
         assert response.status_code == status.HTTP_503_SERVICE_UNAVAILABLE
         assert response.json() == {
             "status": "unhealthy",
-            "services": {
+            "checks": {
                 "database": "ok",
                 "redis": "unavailable",
-                "celery": "ok",
             },
         }
 
-    def test_health_check_returns_503_when_celery_is_unavailable(
+    def test_deep_health_returns_503_when_celery_is_unavailable(
         self,
         api_client,
         monkeypatch,
@@ -117,14 +146,44 @@ class TestHealthCheckApi:
             lambda self: "unavailable",
         )
 
-        response = api_client.get("/health/")
+        response = api_client.get("/health/deep/")
 
         assert response.status_code == status.HTTP_503_SERVICE_UNAVAILABLE
         assert response.json() == {
             "status": "unhealthy",
-            "services": {
+            "checks": {
                 "database": "ok",
                 "redis": "ok",
                 "celery": "unavailable",
+            },
+        }
+
+    def test_deep_health_returns_200_when_all_dependencies_are_healthy(
+        self,
+        api_client,
+        monkeypatch,
+    ):
+        monkeypatch.setattr(
+            "cinepolis_natal_api.health.HealthCheckService._check_database",
+            lambda self: "ok",
+        )
+        monkeypatch.setattr(
+            "cinepolis_natal_api.health.HealthCheckService._check_redis",
+            lambda self: "ok",
+        )
+        monkeypatch.setattr(
+            "cinepolis_natal_api.health.HealthCheckService._check_celery",
+            lambda self: "ok",
+        )
+
+        response = api_client.get("/health/deep/")
+
+        assert response.status_code == status.HTTP_200_OK
+        assert response.json() == {
+            "status": "ok",
+            "checks": {
+                "database": "ok",
+                "redis": "ok",
+                "celery": "ok",
             },
         }

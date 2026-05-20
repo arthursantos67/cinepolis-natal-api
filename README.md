@@ -27,7 +27,7 @@ Services:
 
 - Backend API: `http://localhost:8000`
 - API docs: `http://localhost:8000/api/docs/`
-- Health check: `http://localhost:8000/health/`
+- Health checks: `http://localhost:8000/health/live/`, `/health/ready/`, `/health/deep/`
 - Frontend dev server: `http://localhost:3000`
 - PostgreSQL: `localhost:5432`
 - Redis: `localhost:6379`

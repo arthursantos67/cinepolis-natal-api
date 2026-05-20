@@ -384,7 +384,6 @@ Authentication and user endpoints:
 | `POST` | `/api/v1/auth/register/` | Register a user |
 | `POST` | `/api/v1/auth/login/` | Authenticate and issue access and refresh tokens |
 | `POST` | `/api/v1/auth/token/refresh/` | Refresh an access token from a valid refresh token |
-| `GET` | `/api/v1/auth/me/` | Return current authenticated user profile |
 | `GET` | `/api/v1/users/me/` | Return current authenticated user profile |
 | `GET` | `/api/v1/users/me/tickets/` | Return authenticated user's tickets |
 
@@ -417,10 +416,22 @@ Reservation endpoints:
 | `POST`, `DELETE` | `/api/v1/reservation/sessions/{session_id}/reservations/` | Create or release temporary reservations |
 | `POST` | `/api/v1/reservation/checkout/` | Finalize checkout for temporarily reserved seats |
 
-The backend currently includes `users.urls` under both `/api/v1/auth/` and
-`/api/v1/users/`. The canonical frontend-facing routes are the ones listed above;
-the duplicated user-route aliases are implementation compatibility paths and
-should not be preferred by new clients.
+Authentication routes and user-profile routes are intentionally split. Duplicated
+wrong-prefix aliases such as `/api/v1/users/login/` and `/api/v1/auth/me/`
+return `404` and are not documented in OpenAPI.
+
+### 9.1.1 Room, Seat, and Session Consistency Rules
+
+- `Room.capacity` is a declarative maximum for the room layout. The registered
+  `Seat` count for a room cannot exceed `capacity`, and `capacity` cannot be
+  reduced below the number of registered seats.
+- Creating a `Session` through the API generates one `SessionSeat` for each
+  registered seat in the room at creation time.
+- Room seat layout changes are blocked while future sessions exist for that
+  room. This prevents future session seat maps from becoming silently incomplete
+  after sessions have been published.
+- Existing sessions cannot change `movie`, `room`, `start_time`, `end_time`, or
+  `base_price` after any seat in the session is reserved or purchased.
 
 ### 9.2 Catalog Query Parameters (amended)
 

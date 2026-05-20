@@ -21,7 +21,7 @@ class TestCurrentUserView:
         )
 
     def test_current_user_requires_authentication(self, api_client):
-        response = api_client.get("/api/v1/auth/me/")
+        response = api_client.get("/api/v1/users/me/")
 
         assert response.status_code == status.HTTP_401_UNAUTHORIZED
         assert response.data["error"]["code"] == "NOT_AUTHENTICATED"
@@ -32,7 +32,7 @@ class TestCurrentUserView:
 
         api_client.credentials(HTTP_AUTHORIZATION=f"Bearer {access_token}")
 
-        response = api_client.get("/api/v1/auth/me/")
+        response = api_client.get("/api/v1/users/me/")
 
         assert response.status_code == status.HTTP_200_OK
         assert response.data["id"] == str(user.id)
@@ -43,7 +43,7 @@ class TestCurrentUserView:
     def test_current_user_returns_401_with_invalid_token(self, api_client):
         api_client.credentials(HTTP_AUTHORIZATION="Bearer invalid-token")
 
-        response = api_client.get("/api/v1/auth/me/")
+        response = api_client.get("/api/v1/users/me/")
 
         assert response.status_code == status.HTTP_401_UNAUTHORIZED
         assert response.data["error"]["code"] == "NOT_AUTHENTICATED"
