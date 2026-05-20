@@ -2,6 +2,7 @@ from datetime import timedelta
 from decimal import Decimal
 
 import pytest
+from django.core.exceptions import ValidationError as DjangoValidationError
 from django.utils import timezone
 from rest_framework import status
 from rest_framework.test import APIClient
@@ -66,6 +67,31 @@ def test_room_capacity_cannot_be_lower_than_registered_seats(admin_client):
 
 
 @pytest.mark.django_db
+def test_room_save_time_validation_errors_return_400(admin_client, monkeypatch):
+    room = Room.objects.create(name="Save-Time Room", capacity=2)
+    original_save = Room.save
+
+    def raise_on_api_update(self, *args, **kwargs):
+        if self.pk == room.pk and self.name == "Updated Save-Time Room":
+            raise DjangoValidationError(
+                {"capacity": "Room capacity changed concurrently."}
+            )
+
+        return original_save(self, *args, **kwargs)
+
+    monkeypatch.setattr(Room, "save", raise_on_api_update)
+
+    response = admin_client.patch(
+        f"/api/v1/catalog/rooms/{room.id}/",
+        {"name": "Updated Save-Time Room"},
+        format="json",
+    )
+
+    assert response.status_code == status.HTTP_400_BAD_REQUEST
+    assert "capacity" in response.data["error"]["details"]
+
+
+@pytest.mark.django_db
 def test_room_capacity_cannot_be_exceeded_by_new_seats(admin_client):
     room = Room.objects.create(name="Full Room", capacity=1)
     row = SeatRow.objects.create(room=room, name="A")
@@ -119,6 +145,73 @@ def test_session_creation_generates_seat_map_and_blocks_future_layout_changes(
     assert create_seat_response.status_code == status.HTTP_400_BAD_REQUEST
     assert delete_seat_response.status_code == status.HTTP_400_BAD_REQUEST
     assert SessionSeat.objects.filter(session=session).count() == 1
+
+
+@pytest.mark.django_db
+def test_session_create_save_time_validation_errors_return_400(
+    admin_client,
+    movie,
+    monkeypatch,
+):
+    room = Room.objects.create(name="Create Save-Time Session Room", capacity=1)
+    original_save = Session.save
+
+    def raise_on_api_create(self, *args, **kwargs):
+        if (
+            not Session.objects.filter(pk=self.pk).exists()
+            and str(self.base_price) == "35.00"
+        ):
+            raise DjangoValidationError({"base_price": "Save-time price error."})
+
+        return original_save(self, *args, **kwargs)
+
+    monkeypatch.setattr(Session, "save", raise_on_api_create)
+
+    response = admin_client.post(
+        "/api/v1/catalog/sessions/",
+        {
+            "movie": str(movie.id),
+            "room": str(room.id),
+            "start_time": (timezone.now() + timedelta(days=1)).isoformat(),
+            "end_time": (timezone.now() + timedelta(days=1, hours=2)).isoformat(),
+            "base_price": "35.00",
+        },
+        format="json",
+    )
+
+    assert response.status_code == status.HTTP_400_BAD_REQUEST
+    assert "base_price" in response.data["error"]["details"]
+    assert Session.objects.filter(room=room).count() == 0
+
+
+@pytest.mark.django_db
+def test_session_update_save_time_validation_errors_return_400(
+    admin_client,
+    movie,
+    monkeypatch,
+):
+    room = Room.objects.create(name="Update Save-Time Session Room", capacity=1)
+    session = create_future_session(movie, room)
+    original_save = Session.save
+
+    def raise_on_api_update(self, *args, **kwargs):
+        if self.pk == session.pk and str(self.base_price) == "35.00":
+            raise DjangoValidationError({"base_price": "Save-time price error."})
+
+        return original_save(self, *args, **kwargs)
+
+    monkeypatch.setattr(Session, "save", raise_on_api_update)
+
+    response = admin_client.patch(
+        f"/api/v1/catalog/sessions/{session.id}/",
+        {"base_price": "35.00"},
+        format="json",
+    )
+
+    assert response.status_code == status.HTTP_400_BAD_REQUEST
+    assert "base_price" in response.data["error"]["details"]
+    session.refresh_from_db()
+    assert session.base_price == Decimal("30.00")
 
 
 @pytest.mark.django_db

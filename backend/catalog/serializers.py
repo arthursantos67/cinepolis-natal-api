@@ -6,6 +6,11 @@ from catalog.models import Genre, Movie, Room, Session
 from reservations.models import SessionSeat, SessionSeatStatus, Seat
 
 
+def raise_serializer_validation_error(exc):
+    details = getattr(exc, "message_dict", None) or getattr(exc, "messages", None)
+    raise serializers.ValidationError(details or str(exc)) from exc
+
+
 class GenreSerializer(serializers.ModelSerializer):
     class Meta:
         model = Genre
@@ -36,6 +41,27 @@ class RoomSerializer(serializers.ModelSerializer):
             )
 
         return value
+
+    def create(self, validated_data):
+        room = Room(**validated_data)
+
+        try:
+            room.save()
+        except DjangoValidationError as exc:
+            raise_serializer_validation_error(exc)
+
+        return room
+
+    def update(self, instance, validated_data):
+        for field, value in validated_data.items():
+            setattr(instance, field, value)
+
+        try:
+            instance.save()
+        except DjangoValidationError as exc:
+            raise_serializer_validation_error(exc)
+
+        return instance
 
 
 class RoomSummarySerializer(serializers.ModelSerializer):
@@ -172,11 +198,9 @@ class SessionWriteSerializer(serializers.ModelSerializer):
         session = Session(**validated_data)
 
         try:
-            session.full_clean()
+            session.save()
         except DjangoValidationError as exc:
-            raise serializers.ValidationError(exc.message_dict) from exc
-
-        session.save()
+            raise_serializer_validation_error(exc)
 
         seats = Seat.objects.select_related("row").filter(row__room=session.room)
 
@@ -191,11 +215,10 @@ class SessionWriteSerializer(serializers.ModelSerializer):
             setattr(instance, field, value)
 
         try:
-            instance.full_clean()
+            instance.save()
         except DjangoValidationError as exc:
-            raise serializers.ValidationError(exc.message_dict) from exc
+            raise_serializer_validation_error(exc)
 
-        instance.save()
         return instance
 
 
