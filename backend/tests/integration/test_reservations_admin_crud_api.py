@@ -8,7 +8,7 @@ from rest_framework import status
 from rest_framework.test import APIClient
 
 from catalog.models import Movie, Room, Session
-from reservations.models import Seat, SeatRow, SessionSeat, SessionSeatStatus
+from reservations.models import Seat, SeatRow, SessionSeat, SessionSeatStatus, Ticket
 from reservations.views import (
     SeatDetailView,
     SeatListCreateView,
@@ -26,7 +26,7 @@ REST_FRAMEWORK_OVERRIDE = {
         "rest_framework_simplejwt.authentication.JWTAuthentication",
     ],
     "DEFAULT_PERMISSION_CLASSES": [
-        "rest_framework.permissions.AllowAny",
+        "rest_framework.permissions.IsAuthenticated",
     ],
     "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.PageNumberPagination",
     "PAGE_SIZE": 10,
@@ -72,8 +72,41 @@ def disable_throttling_for_module():
 
 
 @pytest.fixture
-def api_client():
+def admin_user():
+    return User.objects.create_user(
+        email="reservation-admin@example.com",
+        username="reservation_admin",
+        password="StrongPass123",
+        is_staff=True,
+    )
+
+
+@pytest.fixture
+def regular_user():
+    return User.objects.create_user(
+        email="reservation-user@example.com",
+        username="reservation_user",
+        password="StrongPass123",
+    )
+
+
+@pytest.fixture
+def api_client(admin_user):
+    client = APIClient()
+    client.force_authenticate(user=admin_user)
+    return client
+
+
+@pytest.fixture
+def anonymous_api_client():
     return APIClient()
+
+
+@pytest.fixture
+def regular_api_client(regular_user):
+    client = APIClient()
+    client.force_authenticate(user=regular_user)
+    return client
 
 
 @pytest.fixture
@@ -181,7 +214,7 @@ def test_session_seat_create_retrieve_delete_endpoints(api_client, room, session
         {
             "session": str(session.id),
             "seat": str(seat.id),
-            "status": SessionSeatStatus.AVAILABLE,
+            "status": SessionSeatStatus.PURCHASED,
             "locked_by_user": None,
             "lock_expires_at": None,
         },
@@ -190,6 +223,7 @@ def test_session_seat_create_retrieve_delete_endpoints(api_client, room, session
 
     assert create_response.status_code == status.HTTP_201_CREATED
     session_seat_id = create_response.data["id"]
+    assert create_response.data["status"] == SessionSeatStatus.AVAILABLE
 
     retrieve_response = api_client.get(
         f"/api/v1/reservation/session-seats/{session_seat_id}/",
@@ -214,7 +248,7 @@ def test_session_seat_create_retrieve_delete_endpoints(api_client, room, session
 
 
 @pytest.mark.django_db
-def test_ticket_create_list_retrieve_delete_endpoints(api_client, room, session):
+def test_ticket_list_retrieve_delete_endpoints(api_client, room, session):
     user = User.objects.create_user(
         email="ticket-crud@example.com",
         username="ticketcrud",
@@ -229,7 +263,65 @@ def test_ticket_create_list_retrieve_delete_endpoints(api_client, room, session)
         status=SessionSeatStatus.PURCHASED,
     )
 
-    create_response = api_client.post(
+    ticket = Ticket.objects.create(
+        user=user,
+        session_seat=session_seat,
+        ticket_type="inteira",
+        amount_paid="30.00",
+        payment_method="pix",
+    )
+
+    retrieve_response = api_client.get(f"/api/v1/reservation/tickets/{ticket.id}/")
+
+    assert retrieve_response.status_code == status.HTTP_200_OK
+    assert retrieve_response.data["id"] == str(ticket.id)
+    assert retrieve_response.data["ticket_code"]
+    assert retrieve_response.data["ticket_type"] == "inteira"
+    assert retrieve_response.data["amount_paid"] == "30.00"
+    assert retrieve_response.data["payment_method"] == "pix"
+    assert retrieve_response.data["movie"]["id"] == str(session.movie_id)
+    assert retrieve_response.data["session"]["id"] == str(session.id)
+    assert retrieve_response.data["room"]["id"] == str(room.id)
+    assert retrieve_response.data["seat"]["identifier"] == "A1"
+
+    list_response = api_client.get("/api/v1/reservation/tickets/")
+
+    assert list_response.status_code == status.HTTP_200_OK
+    assert list_response.data["count"] == 1
+
+    patch_response = api_client.patch(
+        f"/api/v1/reservation/tickets/{ticket.id}/",
+        {"user": str(user.id)},
+        format="json",
+    )
+
+    assert patch_response.status_code == status.HTTP_405_METHOD_NOT_ALLOWED
+
+    delete_response = api_client.delete(f"/api/v1/reservation/tickets/{ticket.id}/")
+
+    assert delete_response.status_code == status.HTTP_204_NO_CONTENT
+
+
+@pytest.mark.django_db
+def test_ticket_creation_endpoint_is_not_available_for_admins(
+    api_client,
+    room,
+    session,
+):
+    user = User.objects.create_user(
+        email="ticket-create-admin@example.com",
+        username="ticket_create_admin",
+        password="StrongPass123",
+    )
+    seat_row = SeatRow.objects.create(room=room, name="A")
+    seat = Seat.objects.create(row=seat_row, number=1)
+    session_seat = SessionSeat.objects.create(
+        session=session,
+        seat=seat,
+        status=SessionSeatStatus.PURCHASED,
+    )
+
+    response = api_client.post(
         "/api/v1/reservation/tickets/",
         {
             "user": str(user.id),
@@ -241,37 +333,126 @@ def test_ticket_create_list_retrieve_delete_endpoints(api_client, room, session)
         format="json",
     )
 
-    assert create_response.status_code == status.HTTP_201_CREATED
-    ticket_id = create_response.data["id"]
-    assert create_response.data["ticket_code"]
-    assert create_response.data["ticket_type"] == "inteira"
-    assert create_response.data["amount_paid"] == "30.00"
-    assert create_response.data["payment_method"] == "pix"
-    assert create_response.data["movie"]["id"] == str(session.movie_id)
-    assert create_response.data["session"]["id"] == str(session.id)
-    assert create_response.data["room"]["id"] == str(room.id)
-    assert create_response.data["seat"]["identifier"] == "A1"
+    assert response.status_code == status.HTTP_405_METHOD_NOT_ALLOWED
+    assert Ticket.objects.count() == 0
 
-    retrieve_response = api_client.get(f"/api/v1/reservation/tickets/{ticket_id}/")
 
-    assert retrieve_response.status_code == status.HTTP_200_OK
-    assert retrieve_response.data["id"] == ticket_id
-    assert retrieve_response.data["ticket_type"] == "inteira"
-    assert retrieve_response.data["amount_paid"] == "30.00"
+@pytest.mark.django_db
+def test_non_admin_users_cannot_mutate_reservation_admin_resources(
+    regular_api_client,
+    regular_user,
+    room,
+    session,
+):
+    seat_row = SeatRow.objects.create(room=room, name="A")
+    seat = Seat.objects.create(row=seat_row, number=1)
+    session_seat = SessionSeat.objects.create(session=session, seat=seat)
 
-    list_response = api_client.get("/api/v1/reservation/tickets/")
+    responses = [
+        regular_api_client.post(
+            "/api/v1/reservation/seat-rows/",
+            {"room": str(room.id), "name": "B"},
+            format="json",
+        ),
+        regular_api_client.patch(
+            f"/api/v1/reservation/seat-rows/{seat_row.id}/",
+            {"name": "C"},
+            format="json",
+        ),
+        regular_api_client.delete(f"/api/v1/reservation/seats/{seat.id}/"),
+        regular_api_client.post(
+            "/api/v1/reservation/session-seats/",
+            {
+                "session": str(session.id),
+                "seat": str(seat.id),
+                "status": SessionSeatStatus.PURCHASED,
+            },
+            format="json",
+        ),
+        regular_api_client.patch(
+            f"/api/v1/reservation/session-seats/{session_seat.id}/",
+            {"status": SessionSeatStatus.PURCHASED},
+            format="json",
+        ),
+        regular_api_client.post(
+            "/api/v1/reservation/tickets/",
+            {
+                "user": str(regular_user.id),
+                "session_seat": str(session_seat.id),
+                "ticket_type": "inteira",
+                "amount_paid": "30.00",
+                "payment_method": "pix",
+            },
+            format="json",
+        ),
+    ]
 
-    assert list_response.status_code == status.HTTP_200_OK
-    assert list_response.data["count"] == 1
+    for response in responses:
+        assert response.status_code == status.HTTP_403_FORBIDDEN
 
-    patch_response = api_client.patch(
-        f"/api/v1/reservation/tickets/{ticket_id}/",
-        {"user": str(user.id)},
-        format="json",
-    )
+    session_seat.refresh_from_db()
+    assert session_seat.status == SessionSeatStatus.AVAILABLE
+    assert Ticket.objects.count() == 0
 
-    assert patch_response.status_code == status.HTTP_405_METHOD_NOT_ALLOWED
 
-    delete_response = api_client.delete(f"/api/v1/reservation/tickets/{ticket_id}/")
+@pytest.mark.django_db
+def test_anonymous_users_cannot_mutate_reservation_admin_resources(
+    anonymous_api_client,
+    room,
+    session,
+):
+    seat_row = SeatRow.objects.create(room=room, name="A")
+    seat = Seat.objects.create(row=seat_row, number=1)
+    session_seat = SessionSeat.objects.create(session=session, seat=seat)
 
-    assert delete_response.status_code == status.HTTP_204_NO_CONTENT
+    responses = [
+        anonymous_api_client.post(
+            "/api/v1/reservation/seat-rows/",
+            {"room": str(room.id), "name": "B"},
+            format="json",
+        ),
+        anonymous_api_client.patch(
+            f"/api/v1/reservation/seat-rows/{seat_row.id}/",
+            {"name": "C"},
+            format="json",
+        ),
+        anonymous_api_client.delete(f"/api/v1/reservation/seats/{seat.id}/"),
+        anonymous_api_client.post(
+            "/api/v1/reservation/session-seats/",
+            {
+                "session": str(session.id),
+                "seat": str(seat.id),
+                "status": SessionSeatStatus.PURCHASED,
+            },
+            format="json",
+        ),
+        anonymous_api_client.patch(
+            f"/api/v1/reservation/session-seats/{session_seat.id}/",
+            {"status": SessionSeatStatus.PURCHASED},
+            format="json",
+        ),
+        anonymous_api_client.post(
+            "/api/v1/reservation/tickets/",
+            {
+                "user": str(
+                    User.objects.create_user(
+                        email="anon-ticket-user@example.com",
+                        username="anon_ticket_user",
+                        password="StrongPass123",
+                    ).id
+                ),
+                "session_seat": str(session_seat.id),
+                "ticket_type": "inteira",
+                "amount_paid": "30.00",
+                "payment_method": "pix",
+            },
+            format="json",
+        ),
+    ]
+
+    for response in responses:
+        assert response.status_code == status.HTTP_401_UNAUTHORIZED
+
+    session_seat.refresh_from_db()
+    assert session_seat.status == SessionSeatStatus.AVAILABLE
+    assert Ticket.objects.count() == 0

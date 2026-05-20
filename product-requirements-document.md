@@ -123,7 +123,7 @@ The system shall expose an authenticated endpoint to retrieve the current user p
 
 ### FR-04 Catalog Endpoints
 
-The system shall provide endpoints for genres, movies, rooms, and sessions with list/create/retrieve/delete operations. In the current implementation, all catalog operations are public (`AllowAny`), including create and delete. Update operations are not implemented.
+The system shall provide endpoints for genres, movies, rooms, and sessions with public list/retrieve operations and admin-only create/update/delete operations.
 
 ### FR-04a Movie Status and Featured Flag
 
@@ -538,9 +538,9 @@ The seat map is a grid derived from the `SessionSeat` list returned by `GET /api
 ## 11. Security and Access Control
 
 - JWT Bearer authentication is the default API auth mechanism.
-- Catalog and health endpoints are public.
-- Catalog mutation operations (`POST` and `DELETE` on catalog resources) are also public in the current implementation and should be exposed only in controlled deployment contexts.
-- Reservation, checkout, current-user, and ticket endpoints require authentication.
+- Catalog read and health endpoints are public.
+- Catalog mutation operations require admin permissions.
+- Reservation admin resources require admin permissions; user-facing reservation, checkout, current-user, and my-ticket endpoints require authentication.
 - Login and reservation endpoints have dedicated throttle scopes.
 - The checkout service validates computed totals server-side; the frontend-submitted total is never blindly trusted.
 - Frontend routes requiring authentication redirect unauthenticated users to `/login`, preserving the originally requested path for post-login redirect.
