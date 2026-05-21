@@ -177,7 +177,23 @@ export function createApiClient({
 }
 
 export function sanitizeRedirectPath(path: string) {
-  const redirectUrl = new URL(path, "http://frontend.local");
+  const candidate = path.trim();
+
+  if (!candidate || candidate.startsWith("//") || candidate.includes("\\")) {
+    return "/";
+  }
+
+  let redirectUrl: URL;
+
+  try {
+    redirectUrl = new URL(candidate, "http://frontend.local");
+  } catch {
+    return "/";
+  }
+
+  if (redirectUrl.origin !== "http://frontend.local") {
+    return "/";
+  }
 
   for (const key of Array.from(redirectUrl.searchParams.keys())) {
     if (/token|access|refresh|email/i.test(key)) {

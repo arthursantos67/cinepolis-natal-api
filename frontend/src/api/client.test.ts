@@ -275,6 +275,15 @@ test("sanitizeRedirectPath removes sensitive query parameters", () => {
   );
 });
 
+test("sanitizeRedirectPath rejects external redirect targets", () => {
+  assert.equal(sanitizeRedirectPath("https://evil.example/checkout"), "/");
+  assert.equal(sanitizeRedirectPath("//evil.example/checkout"), "/");
+  assert.equal(sanitizeRedirectPath(String.raw`\\evil.example\checkout`), "/");
+  assert.equal(sanitizeRedirectPath(String.raw`\checkout`), "/");
+  assert.equal(sanitizeRedirectPath(String.raw`/checkout\evil`), "/");
+  assert.equal(sanitizeRedirectPath("http://[malformed"), "/");
+});
+
 test("buildLoginRedirectUrl keeps redirects path-only and avoids login loops", () => {
   assert.equal(
     buildLoginRedirectUrl("/my-tickets?access=secret&type=upcoming"),
