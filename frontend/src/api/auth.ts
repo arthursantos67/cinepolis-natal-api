@@ -10,6 +10,19 @@ export type LoginResponse = {
   refresh: string;
 };
 
+export type RegisterPayload = {
+  email: string;
+  password: string;
+  username: string;
+};
+
+export type RegisterResponse = {
+  created_at: string;
+  email: string;
+  id: string;
+  username: string;
+};
+
 export type CurrentUserResponse = {
   created_at: string;
   email: string;
@@ -26,6 +39,14 @@ export const authApi = {
     return apiRequest<LoginResponse>("/api/v1/auth/login/", {
       auth: "none",
       json: credentials,
+      method: "POST",
+    });
+  },
+
+  register(payload: RegisterPayload) {
+    return apiRequest<RegisterResponse>("/api/v1/auth/register/", {
+      auth: "none",
+      json: payload,
       method: "POST",
     });
   },
