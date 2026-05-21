@@ -49,7 +49,7 @@ def _csv_env(name, default):
 DJANGO_ENV = os.getenv("DJANGO_ENV", os.getenv("ENVIRONMENT", "development")).lower()
 IS_PRODUCTION = DJANGO_ENV in PRODUCTION_ENVIRONMENTS
 
-SECRET_KEY = os.getenv("SECRET_KEY", "unsafe-secret-key")
+SECRET_KEY = os.getenv("SECRET_KEY", "unsafe-secret-key").strip()
 DEBUG = _env_bool("DEBUG", default=False)
 
 ALLOWED_HOSTS = _csv_env("ALLOWED_HOSTS", LOCAL_ALLOWED_HOSTS)
@@ -58,7 +58,7 @@ ALLOWED_HOSTS = _csv_env("ALLOWED_HOSTS", LOCAL_ALLOWED_HOSTS)
 def _build_production_configuration_errors():
     errors = []
 
-    secret_key = os.getenv("SECRET_KEY")
+    secret_key = (os.getenv("SECRET_KEY") or "").strip()
     if not secret_key:
         errors.append("SECRET_KEY is required when DJANGO_ENV=production.")
     elif secret_key in UNSAFE_SECRET_KEYS:

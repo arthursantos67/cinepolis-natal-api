@@ -60,8 +60,22 @@ def test_production_requires_secret_key():
     assert "SECRET_KEY is required" in result.stderr
 
 
+def test_production_rejects_whitespace_only_secret_key():
+    result = _production_import({"SECRET_KEY": "   "})
+
+    assert result.returncode != 0
+    assert "SECRET_KEY is required" in result.stderr
+
+
 def test_production_rejects_unsafe_secret_key():
     result = _production_import({"SECRET_KEY": "unsafe-secret-key"})
+
+    assert result.returncode != 0
+    assert "known unsafe development value" in result.stderr
+
+
+def test_production_rejects_unsafe_secret_key_with_surrounding_whitespace():
+    result = _production_import({"SECRET_KEY": " change-me "})
 
     assert result.returncode != 0
     assert "known unsafe development value" in result.stderr
