@@ -159,10 +159,42 @@ docker compose exec celery celery -A cinepolis_natal_api inspect ping
 
 ### Core
 
-- `SECRET_KEY`: Django secret key.
-- `DEBUG`: `True` or `False`.
-- `ALLOWED_HOSTS`: comma-separated host list.
-- `CORS_ALLOWED_ORIGINS`: comma-separated frontend origins allowed to call the API. Defaults to `http://localhost:3000` for local development; set explicit production origins instead of using wildcards.
+- `DJANGO_ENV`: runtime environment. Use `development` locally and `production` in deployed environments.
+- `SECRET_KEY`: Django secret key. Local development may use the example value from `.env.example`; production must provide a unique secret and cannot use `unsafe-secret-key`, `change-me`, or `changeme`.
+- `DEBUG`: `True` or `False`. The settings default to `False`; local development should set `DEBUG=True` in `.env`.
+- `ALLOWED_HOSTS`: comma-separated host list. Local development uses `127.0.0.1,localhost`; production must define explicit public API hosts.
+- `CORS_ALLOWED_ORIGINS`: comma-separated frontend origins allowed to call the API. Local development uses `http://localhost:3000`; production must define explicit HTTPS frontend origins.
+
+### Production Safety
+
+When `DJANGO_ENV=production`, settings validation fails fast during Django startup if any unsafe configuration is detected:
+
+- `SECRET_KEY` is missing or uses a known development value.
+- `DEBUG=True`.
+- `ALLOWED_HOSTS` is empty, missing, uses localhost/loopback, or contains `*` without `ALLOW_WILDCARD_PRODUCTION_HOSTS=True`.
+- `CORS_ALLOWED_ORIGINS` is empty, missing, uses localhost/loopback, contains wildcards, or uses non-HTTPS origins without `ALLOW_INSECURE_PRODUCTION_CORS_ORIGINS=True`.
+
+Recommended production core values:
+
+```env
+DJANGO_ENV=production
+DEBUG=False
+SECRET_KEY=<generate-a-long-random-secret>
+ALLOWED_HOSTS=api.example.com
+CORS_ALLOWED_ORIGINS=https://app.example.com
+```
+
+Production security headers default to safe values when `DJANGO_ENV=production`:
+
+- `SECURE_SSL_REDIRECT=True`
+- `SESSION_COOKIE_SECURE=True`
+- `CSRF_COOKIE_SECURE=True`
+- `SECURE_HSTS_SECONDS=31536000`
+- `SECURE_HSTS_INCLUDE_SUBDOMAINS=True`
+- `SECURE_HSTS_PRELOAD=True`
+- `SECURE_REFERRER_POLICY=strict-origin-when-cross-origin`
+
+Set these explicitly only when your deployment topology requires a different value. For example, if TLS terminates at a proxy, make sure the proxy forwards HTTPS correctly before enabling redirects in production.
 
 ### Database
 

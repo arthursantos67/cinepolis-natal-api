@@ -1,6 +1,9 @@
 from datetime import timedelta
 import os
 from pathlib import Path
+from urllib.parse import urlparse
+
+from django.core.exceptions import ImproperlyConfigured
 
 # -------------------------------------------------------------------
 # Paths
@@ -12,14 +15,109 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # Core settings
 # -------------------------------------------------------------------
 
-SECRET_KEY = os.getenv("SECRET_KEY", "unsafe-secret-key")
-DEBUG = os.getenv("DEBUG", "True") == "True"
+UNSAFE_SECRET_KEYS = {"unsafe-secret-key", "change-me", "changeme"}
+LOCAL_ALLOWED_HOSTS = "127.0.0.1,localhost"
+LOCAL_CORS_ALLOWED_ORIGINS = "http://localhost:3000"
+PRODUCTION_ENVIRONMENTS = {"production", "prod"}
 
-ALLOWED_HOSTS = [
-    host.strip()
-    for host in os.getenv("ALLOWED_HOSTS", "127.0.0.1,localhost").split(",")
-    if host.strip()
-]
+
+def _env_bool(name, default=False):
+    value = os.getenv(name)
+    if value is None:
+        return default
+    return value.strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _env_int(name, default):
+    value = os.getenv(name)
+    if value is None:
+        return default
+    try:
+        return int(value)
+    except ValueError as exc:
+        raise ImproperlyConfigured(f"{name} must be an integer.") from exc
+
+
+def _csv_env(name, default):
+    return [
+        item.strip()
+        for item in os.getenv(name, default).split(",")
+        if item.strip()
+    ]
+
+
+DJANGO_ENV = os.getenv("DJANGO_ENV", os.getenv("ENVIRONMENT", "development")).lower()
+IS_PRODUCTION = DJANGO_ENV in PRODUCTION_ENVIRONMENTS
+
+SECRET_KEY = os.getenv("SECRET_KEY", "unsafe-secret-key").strip()
+DEBUG = _env_bool("DEBUG", default=False)
+
+ALLOWED_HOSTS = _csv_env("ALLOWED_HOSTS", LOCAL_ALLOWED_HOSTS)
+
+
+def _build_production_configuration_errors():
+    errors = []
+
+    secret_key = (os.getenv("SECRET_KEY") or "").strip()
+    if not secret_key:
+        errors.append("SECRET_KEY is required when DJANGO_ENV=production.")
+    elif secret_key in UNSAFE_SECRET_KEYS:
+        errors.append("SECRET_KEY must not use a known unsafe development value.")
+
+    if DEBUG:
+        errors.append("DEBUG must be False when DJANGO_ENV=production.")
+
+    raw_allowed_hosts = os.getenv("ALLOWED_HOSTS")
+    allow_wildcard_hosts = _env_bool("ALLOW_WILDCARD_PRODUCTION_HOSTS")
+    unsafe_hosts = {"127.0.0.1", "localhost", "0.0.0.0", "::1"}
+    if not raw_allowed_hosts or not ALLOWED_HOSTS:
+        errors.append("ALLOWED_HOSTS must define at least one production host.")
+    else:
+        for host in ALLOWED_HOSTS:
+            if host == "*" and not allow_wildcard_hosts:
+                errors.append(
+                    "ALLOWED_HOSTS must not contain '*' in production unless "
+                    "ALLOW_WILDCARD_PRODUCTION_HOSTS=True."
+                )
+            if host.lower() in unsafe_hosts or host.lower().endswith(".localhost"):
+                errors.append(
+                    "ALLOWED_HOSTS must not use localhost or loopback hosts in production."
+                )
+
+    raw_cors_origins = os.getenv("CORS_ALLOWED_ORIGINS")
+    allow_insecure_cors = _env_bool("ALLOW_INSECURE_PRODUCTION_CORS_ORIGINS")
+    unsafe_origin_hosts = {"127.0.0.1", "localhost", "0.0.0.0", "::1"}
+    if not raw_cors_origins or not CORS_ALLOWED_ORIGINS:
+        errors.append("CORS_ALLOWED_ORIGINS must define production frontend origins.")
+    else:
+        for origin in CORS_ALLOWED_ORIGINS:
+            parsed_origin = urlparse(origin)
+            hostname = (parsed_origin.hostname or "").lower()
+            if "*" in origin:
+                errors.append("CORS_ALLOWED_ORIGINS must not contain wildcards.")
+            if parsed_origin.scheme != "https" and not allow_insecure_cors:
+                errors.append(
+                    "CORS_ALLOWED_ORIGINS must use https origins in production unless "
+                    "ALLOW_INSECURE_PRODUCTION_CORS_ORIGINS=True."
+                )
+            if hostname in unsafe_origin_hosts or hostname.endswith(".localhost"):
+                errors.append(
+                    "CORS_ALLOWED_ORIGINS must not use localhost or loopback origins "
+                    "in production."
+                )
+
+    return errors
+
+
+def _validate_production_configuration():
+    if not IS_PRODUCTION:
+        return
+
+    errors = _build_production_configuration_errors()
+    if errors:
+        raise ImproperlyConfigured(
+            "Invalid production configuration: " + " ".join(errors)
+        )
 
 # -------------------------------------------------------------------
 # Installed apps
@@ -76,11 +174,33 @@ WSGI_APPLICATION = "cinepolis_natal_api.wsgi.application"
 # CORS
 # -------------------------------------------------------------------
 
-CORS_ALLOWED_ORIGINS = [
-    origin.strip()
-    for origin in os.getenv("CORS_ALLOWED_ORIGINS", "http://localhost:3000").split(",")
-    if origin.strip()
-]
+CORS_ALLOWED_ORIGINS = _csv_env(
+    "CORS_ALLOWED_ORIGINS",
+    LOCAL_CORS_ALLOWED_ORIGINS,
+)
+
+# -------------------------------------------------------------------
+# Production security
+# -------------------------------------------------------------------
+
+SECURE_SSL_REDIRECT = _env_bool("SECURE_SSL_REDIRECT", default=IS_PRODUCTION)
+SESSION_COOKIE_SECURE = _env_bool("SESSION_COOKIE_SECURE", default=IS_PRODUCTION)
+CSRF_COOKIE_SECURE = _env_bool("CSRF_COOKIE_SECURE", default=IS_PRODUCTION)
+SECURE_HSTS_SECONDS = _env_int(
+    "SECURE_HSTS_SECONDS",
+    31536000 if IS_PRODUCTION else 0,
+)
+SECURE_HSTS_INCLUDE_SUBDOMAINS = _env_bool(
+    "SECURE_HSTS_INCLUDE_SUBDOMAINS",
+    default=IS_PRODUCTION,
+)
+SECURE_HSTS_PRELOAD = _env_bool("SECURE_HSTS_PRELOAD", default=IS_PRODUCTION)
+SECURE_REFERRER_POLICY = os.getenv(
+    "SECURE_REFERRER_POLICY",
+    "strict-origin-when-cross-origin",
+)
+
+_validate_production_configuration()
 
 # -------------------------------------------------------------------
 # Templates
