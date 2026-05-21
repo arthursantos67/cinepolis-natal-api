@@ -30,11 +30,23 @@ export type PaginatedResponse<T> = {
   results: T[];
 };
 
+export type ApiAuthMode = "none" | "optional" | "required";
+
 export type ApiRequestOptions = RequestInit & {
+  auth?: ApiAuthMode;
   baseUrl?: string;
   json?: unknown;
+  retryOnUnauthorized?: boolean;
   token?: string;
 };
+
+export type ApiAuthController = {
+  getAccessToken: () => string | null;
+  handleRefreshFailure?: (path: string) => void;
+  refreshAccessToken: () => Promise<string | null>;
+};
+
+let apiAuthController: ApiAuthController | null = null;
 
 export class ApiError extends Error {
   public readonly code: BackendErrorCode;
@@ -80,11 +92,25 @@ export function buildApiUrl(path: string, baseUrl = API_BASE_URL) {
   return `${resolveApiBaseUrl(baseUrl)}${normalizedPath}`;
 }
 
+export function setApiAuthController(controller: ApiAuthController | null) {
+  apiAuthController = controller;
+}
+
 export async function apiRequest<T>(
   path: string,
-  { baseUrl, json, token, headers, ...options }: ApiRequestOptions = {}
+  {
+    auth = "optional",
+    baseUrl,
+    json,
+    retryOnUnauthorized = true,
+    token,
+    headers,
+    ...options
+  }: ApiRequestOptions = {}
 ): Promise<T> {
-  const requestHeaders = buildHeaders(headers, token);
+  const accessToken =
+    token ?? (auth === "none" ? undefined : apiAuthController?.getAccessToken() ?? undefined);
+  const requestHeaders = buildHeaders(headers, accessToken);
   const requestBody =
     json !== undefined && options.body === undefined
       ? JSON.stringify(json)
@@ -98,6 +124,30 @@ export async function apiRequest<T>(
 
   const body = await readResponseBody(response);
 
+  if (
+    response.status === 401 &&
+    auth === "required" &&
+    retryOnUnauthorized &&
+    apiAuthController
+  ) {
+    const refreshedAccessToken = await tryRefreshAccessToken();
+
+    if (refreshedAccessToken) {
+      return apiRequest<T>(path, {
+        ...options,
+        auth,
+        baseUrl,
+        body: options.body,
+        headers,
+        json,
+        retryOnUnauthorized: false,
+        token: refreshedAccessToken,
+      });
+    }
+
+    apiAuthController?.handleRefreshFailure?.(path);
+  }
+
   if (!response.ok) {
     throw buildApiError(response, body);
   }
@@ -106,9 +156,11 @@ export async function apiRequest<T>(
 }
 
 export function createApiClient({
+  auth = "optional",
   baseUrl,
   token,
 }: {
+  auth?: ApiAuthMode;
   baseUrl?: string;
   token?: string;
 } = {}) {
@@ -116,11 +168,35 @@ export function createApiClient({
     request<T>(path: string, options: ApiRequestOptions = {}) {
       return apiRequest<T>(path, {
         ...options,
+        auth: options.auth ?? auth,
         baseUrl: options.baseUrl ?? baseUrl,
         token: options.token ?? token,
       });
     },
   };
+}
+
+export function sanitizeRedirectPath(path: string) {
+  const redirectUrl = new URL(path, "http://frontend.local");
+
+  for (const key of Array.from(redirectUrl.searchParams.keys())) {
+    if (/token|access|refresh|email/i.test(key)) {
+      redirectUrl.searchParams.delete(key);
+    }
+  }
+
+  const sanitizedPath = `${redirectUrl.pathname}${redirectUrl.search}${redirectUrl.hash}`;
+  return sanitizedPath.startsWith("/") ? sanitizedPath : "/";
+}
+
+export function buildLoginRedirectUrl(path: string) {
+  const redirectPath = sanitizeRedirectPath(path);
+
+  if (redirectPath === "/login" || redirectPath.startsWith("/login?")) {
+    return "/login";
+  }
+
+  return `/login?redirect=${encodeURIComponent(redirectPath)}`;
 }
 
 export const API_ERROR_MESSAGES: Record<KnownBackendErrorCode, string> = {
@@ -182,6 +258,14 @@ function buildHeaders(headers: HeadersInit | undefined, token: string | undefine
   }
 
   return requestHeaders;
+}
+
+async function tryRefreshAccessToken() {
+  try {
+    return await apiAuthController?.refreshAccessToken();
+  } catch {
+    return null;
+  }
 }
 
 async function readResponseBody(response: Response) {

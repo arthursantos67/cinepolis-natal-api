@@ -311,6 +311,13 @@ h1 {
   width: 100%;
 }
 
+.form-error {
+  color: var(--color-error);
+  font-size: 14px;
+  font-weight: 700;
+  margin: 0;
+}
+
 .inline-status {
   border-radius: 999px;
   display: inline-flex;

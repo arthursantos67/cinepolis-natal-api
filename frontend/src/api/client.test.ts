@@ -5,10 +5,13 @@ import {
   API_ERROR_MESSAGES,
   ApiError,
   apiRequest,
+  buildLoginRedirectUrl,
   buildApiUrl,
   getApiErrorUserMessage,
   isPaginatedResponse,
   resolveApiBaseUrl,
+  sanitizeRedirectPath,
+  setApiAuthController,
   type PaginatedResponse,
 } from "./client";
 
@@ -120,6 +123,104 @@ test("apiRequest throws ApiError with backend envelope metadata", async () => {
   }
 });
 
+test("apiRequest refreshes and retries a protected request once after 401", async () => {
+  const originalFetch = globalThis.fetch;
+  const seenAuthorizationHeaders: Array<string | null> = [];
+
+  try {
+    setApiAuthController({
+      getAccessToken: () => "old-access",
+      refreshAccessToken: async () => "new-access",
+    });
+
+    globalThis.fetch = async (_input, init) => {
+      const headers = new Headers(init?.headers);
+      seenAuthorizationHeaders.push(headers.get("Authorization"));
+
+      if (seenAuthorizationHeaders.length === 1) {
+        return Response.json(
+          {
+            error: {
+              code: "NOT_AUTHENTICATED",
+              details: {},
+              message: "Token is invalid or expired.",
+              status: 401,
+            },
+          },
+          { status: 401 }
+        );
+      }
+
+      return Response.json({ ok: true });
+    };
+
+    const response = await apiRequest<{ ok: boolean }>("/api/v1/users/me/", {
+      auth: "required",
+      baseUrl: "http://api.local:8000",
+    });
+
+    assert.deepEqual(response, { ok: true });
+    assert.deepEqual(seenAuthorizationHeaders, [
+      "Bearer old-access",
+      "Bearer new-access",
+    ]);
+  } finally {
+    setApiAuthController(null);
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("apiRequest clears auth through the controller when refresh fails", async () => {
+  const originalFetch = globalThis.fetch;
+  let refreshAttempts = 0;
+  let handledRefreshFailureFor: string | null = null;
+
+  try {
+    setApiAuthController({
+      getAccessToken: () => "old-access",
+      handleRefreshFailure: (path) => {
+        handledRefreshFailureFor = path;
+      },
+      refreshAccessToken: async () => {
+        refreshAttempts += 1;
+        throw new Error("refresh failed");
+      },
+    });
+
+    globalThis.fetch = async () =>
+      Response.json(
+        {
+          error: {
+            code: "NOT_AUTHENTICATED",
+            details: {},
+            message: "Token is invalid or expired.",
+            status: 401,
+          },
+        },
+        { status: 401 }
+      );
+
+    await assert.rejects(
+      apiRequest("/api/v1/users/me/", {
+        auth: "required",
+        baseUrl: "http://api.local:8000",
+      }),
+      (error) => {
+        assert.ok(error instanceof ApiError);
+        assert.equal(error.status, 401);
+        assert.equal(error.code, "NOT_AUTHENTICATED");
+        return true;
+      }
+    );
+
+    assert.equal(refreshAttempts, 1);
+    assert.equal(handledRefreshFailureFor, "/api/v1/users/me/");
+  } finally {
+    setApiAuthController(null);
+    globalThis.fetch = originalFetch;
+  }
+});
+
 test("getApiErrorUserMessage maps known backend codes without exposing raw backend messages", () => {
   for (const [code, message] of Object.entries(API_ERROR_MESSAGES)) {
     const error = new ApiError("Raw backend message.", 400, {
@@ -163,4 +264,21 @@ test("isPaginatedResponse recognizes reusable DRF paginated response shape", () 
     const paginated: PaginatedResponse<MovieSummary> = response;
     assert.equal(paginated.results[0]?.title, "Interestelar");
   }
+});
+
+test("sanitizeRedirectPath removes sensitive query parameters", () => {
+  assert.equal(
+    sanitizeRedirectPath(
+      "/checkout?email=user@example.com&token=secret&reservation=123#summary"
+    ),
+    "/checkout?reservation=123#summary"
+  );
+});
+
+test("buildLoginRedirectUrl keeps redirects path-only and avoids login loops", () => {
+  assert.equal(
+    buildLoginRedirectUrl("/my-tickets?access=secret&type=upcoming"),
+    "/login?redirect=%2Fmy-tickets%3Ftype%3Dupcoming"
+  );
+  assert.equal(buildLoginRedirectUrl("/login?redirect=/checkout"), "/login");
 });
