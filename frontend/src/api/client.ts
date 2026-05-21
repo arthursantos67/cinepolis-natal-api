@@ -179,7 +179,7 @@ export function createApiClient({
 export function sanitizeRedirectPath(path: string) {
   const candidate = path.trim();
 
-  if (!candidate || candidate.startsWith("//")) {
+  if (!candidate || candidate.startsWith("//") || candidate.includes("\\")) {
     return "/";
   }
 

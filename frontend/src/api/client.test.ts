@@ -278,6 +278,9 @@ test("sanitizeRedirectPath removes sensitive query parameters", () => {
 test("sanitizeRedirectPath rejects external redirect targets", () => {
   assert.equal(sanitizeRedirectPath("https://evil.example/checkout"), "/");
   assert.equal(sanitizeRedirectPath("//evil.example/checkout"), "/");
+  assert.equal(sanitizeRedirectPath(String.raw`\\evil.example\checkout`), "/");
+  assert.equal(sanitizeRedirectPath(String.raw`\checkout`), "/");
+  assert.equal(sanitizeRedirectPath(String.raw`/checkout\evil`), "/");
   assert.equal(sanitizeRedirectPath("http://[malformed"), "/");
 });
 
