@@ -58,6 +58,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const accessTokenRef = useRef<string | null>(null);
   const refreshTokenRef = useRef<string | null>(null);
   const refreshPromiseRef = useRef<Promise<string | null> | null>(null);
+  const authGenerationRef = useRef(0);
 
   const clearProtectedState = useCallback(() => {
     if (typeof window !== "undefined") {
@@ -66,6 +67,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const clearAuthState = useCallback(() => {
+    authGenerationRef.current += 1;
+    refreshPromiseRef.current = null;
     accessTokenRef.current = null;
     refreshTokenRef.current = null;
     setState(applyLogout());
@@ -111,38 +114,69 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return null;
     }
 
-    refreshPromiseRef.current = authApi
+    const generationAtStart = authGenerationRef.current;
+    const refreshPromise = authApi
       .refreshAccess(refreshToken)
       .then(({ access }) => {
+        if (
+          authGenerationRef.current !== generationAtStart ||
+          refreshTokenRef.current !== refreshToken
+        ) {
+          return null;
+        }
+
         accessTokenRef.current = access;
         setState((currentState) => applyAccessRefresh(currentState, access));
         return access;
       })
       .catch((error) => {
+        if (authGenerationRef.current !== generationAtStart) {
+          return null;
+        }
+
         clearAuthState();
         throw error;
       })
       .finally(() => {
-        refreshPromiseRef.current = null;
+        if (refreshPromiseRef.current === refreshPromise) {
+          refreshPromiseRef.current = null;
+        }
       });
 
+    refreshPromiseRef.current = refreshPromise;
     return refreshPromiseRef.current;
   }, [clearAuthState]);
 
   const login = useCallback(async (credentials: LoginCredentials) => {
+    const generationAtStart = authGenerationRef.current + 1;
+    authGenerationRef.current = generationAtStart;
+    refreshPromiseRef.current = null;
     setState((currentState) => startAuthLoading(currentState));
 
     try {
       const tokens = await authApi.login(credentials);
+
+      if (authGenerationRef.current !== generationAtStart) {
+        throw new Error("Authentication request was superseded.");
+      }
+
       accessTokenRef.current = tokens.access;
       refreshTokenRef.current = tokens.refresh;
       setState((currentState) => applyLogin(currentState, tokens));
 
       const user = await authApi.currentUser(tokens.access);
+
+      if (authGenerationRef.current !== generationAtStart) {
+        throw new Error("Authentication request was superseded.");
+      }
+
       setState((currentState) => applyCurrentUser(currentState, user));
       return user;
     } catch (error) {
-      clearAuthState();
+      if (authGenerationRef.current === generationAtStart) {
+        clearAuthState();
+      }
+
       throw error;
     }
   }, [clearAuthState]);
