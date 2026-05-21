@@ -1,11 +1,13 @@
-import Link from "next/link";
 import type { Metadata } from "next";
+
+import { AppHeader } from "@/components/layout/AppHeader";
+import { AuthProvider } from "@/contexts/AuthContext";
 
 import "./globals.css";
 
 export const metadata: Metadata = {
   title: "Cinepolis Natal",
-  description: "Browser frontend for the Cinepolis Natal reservation platform.",
+  description: "Frontend web para compra de ingressos do Cinepolis Natal.",
 };
 
 export default function RootLayout({
@@ -16,21 +18,17 @@ export default function RootLayout({
   return (
     <html lang="pt-BR">
       <body>
-        <div className="app-shell">
-          <header className="topbar">
-            <Link className="brand" href="/">
-              Cinepolis Natal
-            </Link>
-            <nav className="nav-links" aria-label="Principal">
-              <Link href="/">Home</Link>
-              <Link href="/my-tickets">Meus ingressos</Link>
-              <Link href="/login">Entrar</Link>
-              <Link href="/register">Criar conta</Link>
-            </nav>
-          </header>
-
-          <main className="page-frame">{children}</main>
-        </div>
+        <AuthProvider>
+          <div className="app-shell">
+            <a className="skip-link" href="#conteudo">
+              Pular para o conteúdo
+            </a>
+            <AppHeader />
+            <main className="main-content" id="conteudo" tabIndex={-1}>
+              <div className="shell-container">{children}</div>
+            </main>
+          </div>
+        </AuthProvider>
       </body>
     </html>
   );
