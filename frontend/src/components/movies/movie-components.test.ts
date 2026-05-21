@@ -1,0 +1,106 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+
+import { createElement } from "react";
+import * as React from "react";
+import { renderToStaticMarkup } from "react-dom/server";
+
+import type { CatalogMovie } from "@/types/catalog";
+
+import { FeaturedMovieBanner } from "./FeaturedMovieBanner";
+import { MovieCard } from "./MovieCard";
+import { MovieGrid } from "./MovieGrid";
+import {
+  formatMovieDuration,
+  formatMovieGenres,
+  getMovieDetailsHref,
+} from "./movie-formatters";
+
+(globalThis as typeof globalThis & { React: typeof React }).React = React;
+
+const movie: CatalogMovie = {
+  duration_minutes: 166,
+  genres: [
+    { id: "genre-1", name: "Ficção científica" },
+    { id: "genre-2", name: "Aventura" },
+  ],
+  id: "movie-123",
+  is_featured: true,
+  poster_url: "https://cdn.example.com/duna.jpg",
+  status: "em_cartaz",
+  title: "Duna: Parte Dois",
+};
+
+test("movie card renders backend movie fields and navigates to the detail route", () => {
+  const html = renderToStaticMarkup(createElement(MovieCard, { movie }));
+
+  assert.match(html, /href="\/movies\/movie-123"/);
+  assert.match(html, /Ver detalhes de Duna: Parte Dois/);
+  assert.match(html, /Poster de Duna: Parte Dois/);
+  assert.match(html, /loading="lazy"/);
+  assert.match(html, /Duna: Parte Dois/);
+  assert.match(html, /Ficção científica, Aventura/);
+  assert.match(html, /2h 46min/);
+  assert.doesNotMatch(html, /age_rating|room_type|audio_format/i);
+});
+
+test("movie grid renders an accessible list of movie cards", () => {
+  const html = renderToStaticMarkup(
+    createElement(MovieGrid, {
+      movies: [movie],
+      title: "Em cartaz",
+    })
+  );
+
+  assert.match(html, /<section/);
+  assert.match(html, /role="list"/);
+  assert.match(html, /Em cartaz/);
+  assert.match(html, /Duna: Parte Dois/);
+});
+
+test("movie grid renders pt-BR empty and loading states", () => {
+  const emptyHtml = renderToStaticMarkup(
+    createElement(MovieGrid, {
+      movies: [],
+      title: "Pré-venda",
+    })
+  );
+
+  assert.match(emptyHtml, /Nenhum filme disponível/);
+  assert.match(emptyHtml, /Nenhum filme foi encontrado para esta seção./);
+
+  const loadingHtml = renderToStaticMarkup(
+    createElement(MovieGrid, {
+      isLoading: true,
+      movies: [],
+      skeletonCount: 2,
+    })
+  );
+
+  assert.match(loadingHtml, /role="status"/);
+  assert.match(loadingHtml, /Carregando filmes.../);
+  assert.match(loadingHtml, /aria-busy="true"/);
+});
+
+test("featured banner renders featured movie media and primary action", () => {
+  const html = renderToStaticMarkup(
+    createElement(FeaturedMovieBanner, { movie })
+  );
+
+  assert.match(html, /Filme em destaque: Duna: Parte Dois/);
+  assert.match(html, /Poster de Duna: Parte Dois/);
+  assert.match(html, /Destaque/);
+  assert.match(html, /Ver sessões/);
+  assert.match(html, /href="\/movies\/movie-123"/);
+  assert.match(html, /Ficção científica, Aventura \| 2h 46min/);
+});
+
+test("movie component helpers format API-shaped values", () => {
+  assert.equal(formatMovieDuration(45), "45min");
+  assert.equal(formatMovieDuration(120), "2h");
+  assert.equal(formatMovieDuration(125), "2h 5min");
+  assert.equal(formatMovieDuration(0), "Duração indisponível");
+  assert.equal(formatMovieGenres([]), "Gênero indisponível");
+  assert.equal(formatMovieGenres(movie.genres), "Ficção científica, Aventura");
+  assert.equal(getMovieDetailsHref(movie.id), "/movies/movie-123");
+});
