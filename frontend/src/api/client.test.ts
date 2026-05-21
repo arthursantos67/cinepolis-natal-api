@@ -273,6 +273,7 @@ test("sanitizeRedirectPath removes sensitive query parameters", () => {
     ),
     "/checkout?reservation=123#summary"
   );
+  assert.equal(sanitizeRedirectPath("/checkout#access=secret"), "/checkout");
 });
 
 test("sanitizeRedirectPath rejects external redirect targets", () => {

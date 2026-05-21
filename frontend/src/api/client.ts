@@ -201,7 +201,10 @@ export function sanitizeRedirectPath(path: string) {
     }
   }
 
-  const sanitizedPath = `${redirectUrl.pathname}${redirectUrl.search}${redirectUrl.hash}`;
+  const sanitizedHash = /token|access|refresh|email/i.test(redirectUrl.hash)
+    ? ""
+    : redirectUrl.hash;
+  const sanitizedPath = `${redirectUrl.pathname}${redirectUrl.search}${sanitizedHash}`;
   return sanitizedPath.startsWith("/") ? sanitizedPath : "/";
 }
 
