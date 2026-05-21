@@ -11,7 +11,7 @@ import {
   type ReactNode,
 } from "react";
 
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 
 import { authApi, type LoginCredentials } from "@/api/auth";
 import {
@@ -54,6 +54,7 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const router = useRouter();
+  const pathname = usePathname();
   const [state, setState] = useState<AuthState>(initialAuthState);
   const accessTokenRef = useRef<string | null>(null);
   const refreshTokenRef = useRef<string | null>(null);
@@ -208,10 +209,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const redirect = new URLSearchParams(window.location.search).get("redirect");
 
-    if (state.status === "authenticated" && redirect) {
+    if (pathname === "/login" && state.status === "authenticated" && redirect) {
       router.replace(sanitizeRedirectPath(redirect));
     }
-  }, [router, state.status]);
+  }, [pathname, router, state.status]);
 
   const value = useMemo(
     () => ({

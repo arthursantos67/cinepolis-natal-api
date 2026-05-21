@@ -1,3 +1,4 @@
+import { SeatSelectionActions } from "@/components/seats/SeatSelectionActions";
 import { PageSection } from "@/components/ui/PageSection";
 import { StateMessage } from "@/components/ui/StateMessage";
 
@@ -19,6 +20,7 @@ export default function SeatSelectionPage() {
         A estrutura responsiva permite rolagem horizontal quando a sala for mais
         larga que a tela do dispositivo.
       </StateMessage>
+      <SeatSelectionActions />
     </PageSection>
   );
 }
