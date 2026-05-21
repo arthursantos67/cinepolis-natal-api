@@ -17,7 +17,7 @@ function isActiveLink(pathname: string, href: string) {
   }
 
   if (href.startsWith("/#")) {
-    return false;
+    return pathname === "/";
   }
 
   return pathname === href || pathname.startsWith(`${href}/`);
