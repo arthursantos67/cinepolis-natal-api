@@ -1,5 +1,17 @@
-import { PagePlaceholder } from "@/components/PagePlaceholder";
+import { PageSection } from "@/components/ui/PageSection";
+import { StateMessage } from "@/components/ui/StateMessage";
 
 export default function ConfirmationPage() {
-  return <PagePlaceholder eyebrow="Pedido" title="Confirmação" />;
+  return (
+    <PageSection
+      description="Confira os ingressos gerados depois da aprovação do pedido."
+      eyebrow="Pedido"
+      title="Confirmação"
+    >
+      <StateMessage tone="success" title="Pronto para exibir ingressos">
+        Esta página receberá os dados da compra concluída e mostrará os
+        ingressos com identificação visual.
+      </StateMessage>
+    </PageSection>
+  );
 }
